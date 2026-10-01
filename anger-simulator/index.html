@@ -1,0 +1,2877 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>퇴근까지 버텨라!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Nanum+Gothic+Coding:wght@400;700&family=Press+Start+2P&display=swap">
+<style>
+/* Layout: 아케이드 캐비닛 HUD — 좌측 메뉴 레일 · 중앙 플레이 스크린(시계·상황·선택지) · 우측 상태 랙 · 하단 기록 트레이 */
+:root{
+  --bg:#0a0920; --bg-2:#100d2c; --panel:#15113d; --panel-2:#1c1750; --line:#382d84; --line-2:#5a48cc;
+  --text:#f2eeff; --muted:#aba3e2; --dim:#736bb2;
+  --pink:#ff3ea5; --mint:#3ff5d2; --yellow:#ffe45c; --green:#86ff6a; --orange:#ff9b3d; --red:#ff4760; --sky:#5bbcff;
+  --pink-glow:rgba(255,62,165,.45); --mint-glow:rgba(63,245,210,.4); --yellow-glow:rgba(255,228,92,.4); --red-glow:rgba(255,71,96,.55);
+  --grid:rgba(90,72,204,.09); --shade:rgba(5,4,18,.78);
+  --f-pixel:"Press Start 2P","Courier New",monospace;
+  --f-display:"Do Hyeon","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  --f-body:"Nanum Gothic Coding","D2Coding","Malgun Gothic","Apple SD Gothic Neo",monospace;
+  --px:3px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+body::after{ /* CRT 스캔라인 */
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:90;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+h1,h2,h3{margin:0;font-family:var(--f-display);font-weight:400;text-wrap:balance;letter-spacing:.01em}
+.num{font-variant-numeric:tabular-nums}
+.pix{font-family:var(--f-pixel);letter-spacing:.04em}
+
+/* ---------- 앱 그리드 ---------- */
+.app{
+  display:grid;gap:14px;padding-inline:16px;padding-block:0 24px;max-width:1500px;margin:0 auto;
+  grid-template-columns:190px minmax(0,1fr) 320px;
+  grid-template-areas:"top top top" "nav stage status" "nav tray status";
+  align-items:start;
+}
+.topbar{grid-area:top}
+.sidenav{grid-area:nav}
+.stage{grid-area:stage;display:grid;gap:14px;min-width:0}
+.status{grid-area:status;display:grid;gap:14px;min-width:0}
+.tray{grid-area:tray;min-width:0}
+
+.card{
+  background:var(--panel);border:var(--px) solid var(--line);position:relative;min-width:0;
+  box-shadow:0 0 0 var(--px) var(--bg),0 0 22px -8px var(--line-2),inset 0 0 0 1px rgba(255,255,255,.03);
+  padding:16px;
+}
+.card-title{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;
+  font-family:var(--f-pixel);font-size:10px;letter-spacing:.12em;color:var(--mint);text-transform:uppercase;
+}
+.card-title .ko{font-family:var(--f-display);font-size:17px;letter-spacing:.02em;color:var(--text);text-transform:none}
+
+/* ---------- 상단 바 ---------- */
+.topbar{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:40;
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 14px;margin-top:10px;
+  background:rgba(12,10,36,.94);border:var(--px) solid var(--line);backdrop-filter:blur(6px);
+  box-shadow:0 0 0 var(--px) var(--bg),0 6px 24px -10px var(--pink-glow);
+}
+.brand{display:flex;flex-direction:column;line-height:1.1;margin-right:auto;min-width:0}
+.brand-mark{font-family:var(--f-display);font-size:26px;color:var(--pink);text-shadow:0 0 10px var(--pink-glow),2px 2px 0 #3a0d2a}
+.brand-sub{font-family:var(--f-pixel);font-size:8px;color:var(--muted);letter-spacing:.14em;margin-top:5px}
+.hud-mini{display:flex;gap:8px;align-items:center}
+.chip-hud{
+  display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-2);border:2px solid var(--line);
+  font-family:var(--f-pixel);font-size:12px;white-space:nowrap;
+}
+.chip-hud .lbl{font-family:var(--f-display);font-size:15px;color:var(--muted);letter-spacing:0}
+#miniAnger b{color:var(--mint)}
+#miniAnger.hot b{color:var(--yellow)} #miniAnger.danger b{color:var(--red)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.speed{display:flex;border:2px solid var(--line);background:var(--bg-2)}
+.speed button{background:none;border:0;padding:7px 8px;font-family:var(--f-pixel);font-size:10px;color:var(--muted)}
+.speed button[aria-pressed="true"]{background:var(--mint);color:#07231d}
+
+/* ---------- 버튼 ---------- */
+.btn{
+  --c:var(--line-2);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 14px;background:var(--panel-2);border:2px solid var(--c);color:var(--text);
+  font-family:var(--f-display);font-size:17px;line-height:1.1;
+  box-shadow:3px 3px 0 var(--bg);transition:transform .06s,box-shadow .06s,background .15s;
+}
+.btn:hover{background:#261f68}
+.btn:active,.btn.pressed{transform:translate(3px,3px);box-shadow:0 0 0 var(--bg)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn.primary{--c:var(--pink);background:var(--pink);color:#2a0419;box-shadow:3px 3px 0 #5a0f3a,0 0 16px var(--pink-glow)}
+.btn.primary:hover{background:#ff5cb3}
+.btn.mint{--c:var(--mint);color:var(--mint)}
+.btn.warn{--c:var(--red);color:var(--red)}
+.btn.small{font-size:14px;padding:6px 10px}
+.btn.icon{padding:7px 10px;font-size:16px}
+
+/* ---------- 좌측 메뉴 ---------- */
+.sidenav{display:flex;flex-direction:column;gap:6px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 96px)}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;text-align:left;
+  background:var(--panel);border:2px solid var(--line);font-family:var(--f-display);font-size:18px;color:var(--muted);
+}
+.nav-btn .ic{width:22px;text-align:center}
+.nav-btn:hover{color:var(--text);border-color:var(--line-2)}
+.nav-btn[aria-current="true"]{color:#07231d;background:var(--mint);border-color:var(--mint);box-shadow:0 0 14px var(--mint-glow)}
+.nav-foot{margin-top:10px;padding:10px;border:2px dashed var(--line);font-size:13px;color:var(--dim)}
+
+/* ---------- 시계 카드 ---------- */
+.clock-card{display:grid;gap:10px;text-align:center;border-color:var(--line-2)}
+.clock-label{font-family:var(--f-display);font-size:18px;color:var(--muted)}
+.clock-digits{
+  font-family:var(--f-pixel);font-size:clamp(26px,4.6vw,54px);color:var(--yellow);line-height:1.15;
+  text-shadow:0 0 14px var(--yellow-glow),3px 3px 0 #3d2a00;white-space:nowrap;
+}
+.clock-digits.slowmo{color:var(--pink);text-shadow:0 0 16px var(--pink-glow),3px 3px 0 #3a0d2a;animation:blink 1s steps(2) infinite}
+.clock-sub{font-size:15px;color:var(--muted)} .clock-sub b{color:var(--text)}
+.ot-badge{display:inline-block;margin-left:6px;padding:1px 7px;background:var(--red);color:#2b0710;font-weight:700;font-size:13px}
+.progress{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+.pbar{height:22px;border:2px solid var(--line-2);background:var(--bg-2);position:relative;overflow:hidden}
+.pfill{height:100%;width:0;background:repeating-linear-gradient(90deg,var(--green) 0 12px,transparent 12px 15px);box-shadow:0 0 12px rgba(134,255,106,.35);transition:width .5s steps(6)}
+.pct{font-family:var(--f-pixel);font-size:12px;color:var(--green)}
+.closing-banner{
+  padding:6px 10px;background:repeating-linear-gradient(135deg,rgba(255,155,61,.18) 0 10px,transparent 10px 20px);
+  border:2px solid var(--orange);color:var(--orange);font-family:var(--f-display);font-size:18px;animation:blink 1.2s steps(2) infinite;
+}
+
+/* ---------- 상황 카드 ---------- */
+.scene-card{min-height:430px;display:flex;flex-direction:column;gap:14px;border-color:var(--pink);box-shadow:0 0 0 var(--px) var(--bg),0 0 26px -8px var(--pink-glow)}
+.scene-body{display:flex;flex-direction:column;gap:14px;flex:1}
+.scene-body.enter{animation:slideIn .45s cubic-bezier(.2,.9,.3,1.2)}
+.who{display:flex;gap:14px;align-items:center}
+.avatar{
+  width:78px;height:78px;flex:none;display:grid;place-items:center;font-size:44px;background:var(--bg-2);
+  border:var(--px) solid var(--pink);box-shadow:4px 4px 0 var(--bg),0 0 16px var(--pink-glow);image-rendering:pixelated;
+}
+.avatar.event{border-color:var(--sky);box-shadow:4px 4px 0 var(--bg),0 0 16px rgba(91,188,255,.4)}
+.avatar.angel{border-color:var(--mint);box-shadow:4px 4px 0 var(--bg),0 0 16px var(--mint-glow)}
+.who-name{font-family:var(--f-display);font-size:28px;line-height:1.1}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tag{font-size:12px;padding:2px 8px;border:2px solid var(--line-2);color:var(--muted);font-weight:700}
+.tag.jin{border-color:var(--red);color:var(--red)} .tag.rare{border-color:var(--yellow);color:var(--yellow)}
+.tag.evt{border-color:var(--sky);color:var(--sky)} .tag.good{border-color:var(--mint);color:var(--mint)} .tag.job{border-color:var(--pink);color:var(--pink)}
+.tag.loop{border-color:var(--orange);color:var(--orange)}
+.lines{display:flex;flex-direction:column;gap:9px}
+.line{max-width:86%;padding:10px 13px;font-size:17px;line-height:1.5;border:2px solid var(--line);background:var(--bg-2);position:relative}
+.line.c{align-self:flex-start;border-color:var(--pink);box-shadow:3px 3px 0 var(--bg)}
+.line.c::before{content:"손님";position:absolute;top:-10px;left:8px;font-size:11px;padding:0 5px;background:var(--pink);color:#2a0419;font-weight:700}
+.line.s{align-self:flex-end;border-color:var(--mint);box-shadow:-3px 3px 0 var(--bg)}
+.line.s::before{content:"나";position:absolute;top:-10px;right:8px;font-size:11px;padding:0 5px;background:var(--mint);color:#07231d;font-weight:700}
+.line.n{align-self:center;max-width:100%;border-style:dashed;border-color:var(--dim);color:var(--muted);font-size:15px;text-align:center}
+.line.loopnote{align-self:center;border-color:var(--orange);color:var(--orange);font-size:14px}
+.receipt{
+  align-self:center;width:min(290px,100%);background:#f3efe2;color:#241f2e;padding:12px 14px;font-size:13px;line-height:1.5;
+  box-shadow:4px 4px 0 var(--bg);clip-path:polygon(0 0,100% 0,100% 94%,95% 100%,90% 94%,85% 100%,80% 94%,75% 100%,70% 94%,65% 100%,60% 94%,55% 100%,50% 94%,45% 100%,40% 94%,35% 100%,30% 94%,25% 100%,20% 94%,15% 100%,10% 94%,5% 100%,0 94%);
+}
+.receipt .r-h{text-align:center;font-weight:700;border-bottom:1px dashed #6b6478;padding-bottom:4px;margin-bottom:4px}
+.receipt .r-row{display:flex;justify-content:space-between;gap:10px}
+.receipt .r-row.hl{background:#ffd9e9;font-weight:700}
+.receipt .r-tot{border-top:1px dashed #6b6478;margin-top:4px;padding-top:4px;font-weight:700}
+
+.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:auto}
+.choice{
+  --c:var(--line-2);
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:start;text-align:left;
+  padding:12px;min-height:72px;background:var(--panel-2);border:2px solid var(--c);
+  box-shadow:4px 4px 0 var(--bg);transition:transform .06s,box-shadow .06s,background .15s;
+}
+.choice:hover{background:#261f68;transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--bg)}
+.choice:active,.choice.pressed{transform:translate(4px,4px);box-shadow:0 0 0 var(--bg)}
+.choice:disabled{opacity:.45;cursor:not-allowed}
+.choice .key{grid-row:span 2;width:30px;height:30px;display:grid;place-items:center;background:var(--c);color:#0b0920;font-family:var(--f-pixel);font-size:12px}
+.choice .st{font-size:12px;font-weight:700;color:var(--c)}
+.choice .tx{font-size:16px;line-height:1.45}
+.st-std{--c:var(--mint)} .st-dodge{--c:var(--sky)} .st-humor{--c:var(--yellow)} .st-risk{--c:var(--red)} .st-inner{--c:var(--pink)}
+
+.result{display:flex;flex-direction:column;gap:12px}
+.said{padding:12px;border:2px solid var(--line-2);background:var(--bg-2);font-size:16px}
+.said .k{display:inline-block;min-width:62px;font-size:12px;font-weight:700;color:var(--muted)}
+.said .inner{color:var(--pink);font-weight:700}
+.res-text{font-size:17px;line-height:1.6}
+.fx-chips{display:flex;flex-wrap:wrap;gap:6px}
+.fx{padding:4px 9px;font-size:14px;font-weight:700;border:2px solid;background:var(--bg-2)}
+.fx.bad{color:var(--red);border-color:var(--red)} .fx.good{color:var(--mint);border-color:var(--mint)} .fx.neu{color:var(--muted);border-color:var(--line-2)}
+.next-row{display:flex;align-items:center;gap:12px;margin-top:auto;flex-wrap:wrap}
+.autobar{flex:1;min-width:120px;height:8px;background:var(--bg-2);border:2px solid var(--line)}
+.autobar i{display:block;height:100%;width:100%;background:var(--mint);transform-origin:left}
+
+.idle{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:10px}
+.idle .big{font-size:58px;line-height:1;animation:bob 1.6s ease-in-out infinite}
+.idle h2{font-size:28px}
+.idle p{margin:0;color:var(--muted);font-size:16px;max-width:52ch}
+.idle.pray h2{color:var(--pink);font-size:32px}
+.paused-tag{position:absolute;top:10px;right:12px;font-family:var(--f-pixel);font-size:11px;color:var(--yellow);animation:blink 1s steps(2) infinite}
+
+/* 타이틀(출근 전) */
+.title-screen{display:flex;flex-direction:column;gap:16px}
+.hero-line{font-family:var(--f-display);font-size:clamp(26px,3.4vw,40px);line-height:1.15;color:var(--text);text-shadow:0 0 12px var(--pink-glow)}
+.hero-sub{margin:0;color:var(--muted);font-size:16px}
+.pick-label{font-family:var(--f-display);font-size:17px;color:var(--mint);margin-bottom:6px}
+.pick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.pick-grid.diff{grid-template-columns:repeat(5,minmax(0,1fr))}
+.pick{
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;background:var(--bg-2);border:2px solid var(--line);
+  font-family:var(--f-display);font-size:17px;color:var(--muted);box-shadow:3px 3px 0 var(--bg);
+}
+.pick .ic{font-size:24px}
+.pick small{font-family:var(--f-body);font-size:11px;color:var(--dim)}
+.pick[aria-pressed="true"]{border-color:var(--pink);color:var(--text);background:#2a1450;box-shadow:3px 3px 0 var(--bg),0 0 12px var(--pink-glow)}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:13px;color:var(--muted)}
+.how div{border:2px dashed var(--line);padding:8px 10px}
+.how b{color:var(--yellow);font-family:var(--f-display);font-size:15px;font-weight:400;display:block}
+
+/* 아이템 퀵바 */
+.itembar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.itembar .lbl{font-family:var(--f-pixel);font-size:9px;color:var(--mint);letter-spacing:.12em;margin-right:4px}
+.item-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 10px;background:var(--bg-2);border:2px solid var(--line-2);
+  font-family:var(--f-display);font-size:16px;box-shadow:3px 3px 0 var(--bg);
+}
+.item-btn:active{transform:translate(3px,3px);box-shadow:none}
+.item-btn:disabled{opacity:.35;cursor:not-allowed}
+.item-btn .cnt{font-family:var(--f-pixel);font-size:9px;color:var(--yellow)}
+
+/* ---------- 상태 랙 ---------- */
+.gauge{display:grid;gap:6px;position:relative}
+.g-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.g-name{font-family:var(--f-display);font-size:18px}
+.g-val{font-family:var(--f-pixel);font-size:12px}
+.bar{height:18px;border:2px solid var(--line);background:var(--bg-2);position:relative;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:repeating-linear-gradient(90deg,var(--c,var(--mint)) 0 9px,transparent 9px 11px);transition:width .4s steps(8)}
+.anger{padding:12px;border:var(--px) solid var(--line-2);background:var(--bg-2)}
+.anger .g-name{font-size:22px}
+.anger-num{font-family:var(--f-pixel);font-size:34px;line-height:1;color:var(--mint);text-shadow:0 0 12px currentColor}
+.anger-stage{font-family:var(--f-display);font-size:19px}
+.anger .bar{height:30px;border-color:var(--line-2)}
+.anger .bar>i{background:repeating-linear-gradient(90deg,var(--c) 0 14px,transparent 14px 17px);box-shadow:0 0 14px var(--c)}
+.anger .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);font-family:var(--f-pixel)}
+.jolt{animation:jolt .38s steps(4)}
+.heal{animation:heal .8s ease-out}
+.pop{position:absolute;right:8px;top:4px;font-family:var(--f-pixel);font-size:14px;pointer-events:none;animation:floatUp 1.1s ease-out forwards;z-index:3}
+.pop.up{color:var(--red);text-shadow:0 0 8px var(--red-glow)} .pop.down{color:var(--mint);text-shadow:0 0 8px var(--mint-glow)}
+.stats-list{display:grid;gap:12px}
+.stars{display:flex;gap:3px;font-size:20px;line-height:1}
+.star{position:relative;color:var(--line-2)}
+.star i{position:absolute;inset:0;overflow:hidden;color:var(--yellow);font-style:normal;width:var(--f,0%)}
+.cups{display:flex;gap:4px;font-size:19px}
+.cups span{filter:grayscale(1) brightness(.5)} .cups span.on{filter:none}
+.cups.over span.on{animation:jolt .5s steps(3) infinite}
+.combo-card{text-align:center;display:grid;gap:4px}
+.combo-num{font-family:var(--f-pixel);font-size:22px;color:var(--orange);text-shadow:0 0 12px rgba(255,155,61,.5)}
+.combo-msg{font-size:14px;color:var(--muted);min-height:1.5em}
+.hell-tag{font-family:var(--f-pixel);font-size:13px;color:var(--red);animation:blink .6s steps(2) infinite}
+
+/* 개발자 패널 */
+.devpanel{padding:0}
+.devpanel summary{padding:12px 16px;cursor:pointer;font-family:var(--f-pixel);font-size:10px;color:var(--yellow);letter-spacing:.1em;list-style:none}
+.devpanel summary::-webkit-details-marker{display:none}
+.devpanel summary::before{content:"▶ "}
+.devpanel[open] summary::before{content:"▼ "}
+.dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 12px 12px}
+.dev-grid .btn{font-size:14px;padding:7px 6px;--c:var(--yellow)}
+
+/* ---------- 트레이(하단) ---------- */
+.tray-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.log{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}
+.log-row{display:grid;grid-template-columns:52px 26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;background:var(--bg-2);border-left:4px solid var(--line-2);font-size:14px}
+.log-row.jin{border-left-color:var(--red)} .log-row.good{border-left-color:var(--mint)} .log-row.evt{border-left-color:var(--sky)} .log-row.item{border-left-color:var(--yellow)}
+.log-row .t{font-family:var(--f-pixel);font-size:10px;color:var(--dim)}
+.log-row .d{font-family:var(--f-pixel);font-size:10px}
+.log-row .sub{display:block;font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d.up{color:var(--red)} .d.down{color:var(--mint)} .d.zero{color:var(--dim)}
+.msg-box{font-family:var(--f-display);font-size:21px;line-height:1.35;color:var(--yellow);min-height:3.2em;display:flex;align-items:center}
+.stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.stat-tile{background:var(--bg-2);border:2px solid var(--line);padding:8px 10px}
+.stat-tile .k{font-size:13px;color:var(--muted)}
+.stat-tile .v{font-family:var(--f-pixel);font-size:15px;color:var(--text);margin-top:4px}
+.stat-tile .v small{font-family:var(--f-body);font-size:12px;color:var(--dim)}
+.empty{color:var(--dim);font-size:14px;padding:10px;border:2px dashed var(--line);text-align:center}
+.table-wrap{overflow-x:auto}
+table.log-table{width:100%;border-collapse:collapse;font-size:14px}
+.log-table th,.log-table td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.log-table th{font-family:var(--f-display);font-weight:400;font-size:15px;color:var(--mint)}
+.log-table td.wrap{white-space:normal;min-width:180px}
+.chart-wrap{overflow-x:auto}
+.chart-wrap svg{display:block;width:100%;min-width:480px;height:auto}
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.ach{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;align-items:center;padding:10px;background:var(--bg-2);border:2px solid var(--line)}
+.ach .ic{font-size:26px;text-align:center}
+.ach b{font-family:var(--f-display);font-weight:400;font-size:17px;display:block}
+.ach small{font-size:12px;color:var(--dim)}
+.ach.lock{opacity:.5} .ach.lock .ic{filter:grayscale(1)}
+.ach.got{border-color:var(--yellow);box-shadow:0 0 12px var(--yellow-glow)}
+.title-chips{display:flex;flex-wrap:wrap;gap:8px}
+.title-chip{padding:5px 10px;border:2px solid var(--pink);color:var(--pink);font-family:var(--f-display);font-size:16px}
+.item-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.item-card{display:grid;gap:6px;padding:12px;background:var(--bg-2);border:2px solid var(--line-2)}
+.item-card h3{font-size:19px}
+.item-card p{margin:0;font-size:13px;color:var(--muted)}
+.set-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
+.field{display:grid;gap:6px}
+.field label,.field .lbl{font-family:var(--f-display);font-size:17px;color:var(--mint)}
+.field select,.field input[type="time"]{padding:8px;background:var(--bg-2);border:2px solid var(--line-2);font-size:15px}
+.field input[type="range"]{width:100%;accent-color:var(--pink)}
+.toggles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tgl{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-2);border:2px solid var(--line);font-size:14px;cursor:pointer}
+.tgl input{accent-color:var(--mint);width:18px;height:18px}
+.note{font-size:13px;color:var(--orange);min-height:1.3em}
+.confirm-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:2px solid var(--red);background:rgba(255,71,96,.08)}
+
+/* ---------- 화면 효과 ---------- */
+.fx-vignette{position:fixed;inset:0;pointer-events:none;z-index:80;opacity:0;transition:opacity .6s;box-shadow:inset 0 0 140px 30px var(--red-glow)}
+body.lv60 .fx-vignette{opacity:.6}
+body.lv80 .fx-vignette{opacity:1;animation:pulse 1.2s ease-in-out infinite}
+body.lv80.shake-on .app{animation:micro .32s steps(3) infinite}
+body.hell.shake-on .app{animation:micro .22s steps(3) infinite}
+body.hell .fx-vignette{opacity:1;box-shadow:inset 0 0 160px 40px rgba(255,62,165,.55)}
+.critical{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 86px);left:50%;transform:translateX(-50%);z-index:85;pointer-events:none;
+  padding:8px 18px;background:var(--red);color:#1f0309;font-family:var(--f-pixel);font-size:14px;letter-spacing:.1em;
+  box-shadow:0 0 30px var(--red-glow);animation:blink .5s steps(2) infinite;white-space:nowrap;
+}
+.breakdown{
+  position:fixed;inset:0;z-index:95;display:grid;place-items:center;pointer-events:none;
+  font-family:var(--f-pixel);font-size:clamp(22px,6vw,64px);color:var(--red);text-align:center;
+  text-shadow:4px 0 var(--pink),-4px 0 var(--mint),0 0 30px var(--red-glow);animation:glitch .25s steps(2) infinite;
+}
+body.frozen .app{filter:grayscale(.85) contrast(1.15) brightness(.7);animation:none!important}
+body.frozen .app *{animation-play-state:paused!important}
+.toasts{position:fixed;right:16px;bottom:16px;z-index:96;pointer-events:none;display:flex;flex-direction:column;gap:8px;width:min(340px,calc(100vw - 32px))}
+.toast{padding:10px 14px;background:var(--panel-2);border:var(--px) solid var(--yellow);box-shadow:4px 4px 0 var(--bg),0 0 18px var(--yellow-glow);animation:slideIn .35s ease-out;font-size:14px}
+.toast b{font-family:var(--f-display);font-weight:400;font-size:18px;color:var(--yellow);display:block}
+.toast.info{border-color:var(--mint);box-shadow:4px 4px 0 var(--bg),0 0 18px var(--mint-glow)} .toast.info b{color:var(--mint)}
+.toast.warn{border-color:var(--red);box-shadow:4px 4px 0 var(--bg),0 0 18px var(--red-glow)} .toast.warn b{color:var(--red)}
+.overlay{position:fixed;inset:0;z-index:97;display:grid;place-items:center;padding:16px;background:var(--shade);overflow:auto}
+.ov-panel{width:min(620px,100%);max-height:calc(100dvh - 32px);overflow:auto;background:var(--panel);border:var(--px) solid var(--pink);padding:22px;box-shadow:0 0 0 var(--px) var(--bg),0 0 40px var(--pink-glow);display:grid;gap:14px;text-align:center;animation:slideIn .4s ease-out}
+.ov-panel.win{border-color:var(--green);box-shadow:0 0 0 var(--px) var(--bg),0 0 40px rgba(134,255,106,.4)}
+.ov-panel h2{font-size:clamp(28px,5vw,42px)}
+.ov-panel .big-emo{font-size:56px;line-height:1}
+.ov-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:left}
+.ov-title{font-family:var(--f-display);font-size:26px;color:var(--yellow);text-shadow:0 0 12px var(--yellow-glow)}
+.ov-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:98;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:10px;height:10px;background:var(--c);animation:fall var(--d) steps(18) forwards;left:var(--x)}
+
+@keyframes slideIn{from{transform:translateX(46px);opacity:.15}to{transform:none;opacity:1}}
+@keyframes jolt{0%,100%{transform:none}25%{transform:translate(-5px,1px)}50%{transform:translate(5px,-1px)}75%{transform:translate(-3px,0)}}
+@keyframes heal{0%{box-shadow:0 0 0 0 var(--mint-glow)}40%{box-shadow:0 0 26px 6px var(--mint-glow)}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes floatUp{from{transform:translateY(0);opacity:1}to{transform:translateY(-38px);opacity:0}}
+@keyframes micro{0%{transform:translate(0,0)}33%{transform:translate(-1.5px,1px)}66%{transform:translate(1.5px,-1px)}100%{transform:translate(0,0)}}
+@keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes blink{50%{opacity:.35}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes glitch{0%{transform:translate(0)}50%{transform:translate(-3px,2px) skewX(-4deg)}100%{transform:translate(3px,-2px)}}
+@keyframes fall{to{transform:translate(var(--dx),110vh) rotate(var(--r))}}
+
+/* 우측 설정 패널 */
+.setpanel summary{color:var(--mint)}
+.setpanel #setBody{padding:0 14px 14px}
+.setpanel .set-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.setpanel .field label,.setpanel .field .lbl{font-size:15px}
+.setpanel .field select,.setpanel .field input[type="time"]{font-size:14px;padding:6px;width:100%;min-width:0}
+.setpanel .toggles{grid-template-columns:repeat(2,minmax(0,1fr))}
+.setpanel .tgl{font-size:13px;padding:6px 8px}
+.setpanel .tgl:last-child:nth-child(odd){grid-column:1/-1}
+.setpanel .card-title{margin-top:14px}
+
+/* 모바일 전용 상단 HUD */
+.m-hud{display:none}
+
+/* ---------- 반응형 ---------- */
+@media (max-width:1180px){
+  .app{grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"top top" "nav nav" "stage status" "tray tray"}
+  .sidenav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px}
+  .nav-btn{width:auto;flex:none;font-size:16px;padding:8px 12px}
+  .nav-foot{display:none}
+}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "nav" "stage" "status" "tray";gap:12px}
+  .topbar{gap:8px;position:static}
+  .topbar .hud-mini{display:none}
+  .app{padding-top:54px}
+  .m-hud{
+    display:flex;position:fixed;top:0;left:0;right:0;z-index:60;align-items:center;gap:10px;
+    padding:calc(env(safe-area-inset-top,0px) + 6px) 16px 6px;background:rgba(12,10,36,.97);
+    border-bottom:var(--px) solid var(--line);box-shadow:0 4px 18px -8px var(--pink-glow);font-family:var(--f-pixel);font-size:12px;
+  }
+  .m-hud .m-anger{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
+  .m-hud .m-bar{flex:1;height:12px;min-width:40px;border:2px solid var(--line-2);background:var(--bg-2)}
+  .m-hud .m-bar i{display:block;height:100%;width:0;background:var(--c,var(--mint));transition:width .3s steps(6)}
+  .m-hud .m-time{white-space:nowrap;color:var(--yellow)}
+  .m-hud .btn{padding:4px 9px;font-size:14px}
+  .toasts{top:calc(env(safe-area-inset-top,0px) + 60px);bottom:auto;left:16px;right:16px;width:auto}
+  .brand-mark{font-size:21px}
+  .brand-sub{display:none}
+  .controls{width:100%}
+  .controls .speed{margin-left:auto}
+  .tray-grid,.set-grid{grid-template-columns:minmax(0,1fr)}
+  .toggles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pick-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .pick-grid.diff{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .how{grid-template-columns:minmax(0,1fr)}
+  .status{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .status .status-card{grid-column:1/-1}
+  .ov-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:520px){
+  .choices{grid-template-columns:minmax(0,1fr)}
+  .pick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pick-grid.diff{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pick-grid.diff .pick:last-child{grid-column:1/-1}
+  .status{grid-template-columns:minmax(0,1fr)}
+  .line{max-width:96%}
+  .avatar{width:62px;height:62px;font-size:34px}
+  .who-name{font-size:23px}
+  .scene-card{min-height:380px}
+  .log-row{grid-template-columns:46px 22px minmax(0,1fr) auto}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="m-hud" id="mHud" aria-label="모바일 상태 표시">
+  <span class="m-anger">🔥 <b class="num" id="mAnger">0%</b><span class="m-bar"><i id="mAngerFill"></i></span></span>
+  <span class="m-time">⏱ <b class="num" id="mTime">--:--:--</b></span>
+  <button class="btn icon" id="mPause" type="button" aria-label="일시정지" disabled>⏸</button>
+</div>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">퇴근까지 버텨라!</span>
+      <span class="brand-sub">ANGER GAUGE SIMULATOR</span>
+    </div>
+    <div class="hud-mini" aria-live="off">
+      <div class="chip-hud" id="miniAnger"><span class="lbl">🔥 분노</span><b class="num" id="miniAngerVal">0%</b></div>
+      <div class="chip-hud"><span class="lbl">⏱ 퇴근까지</span><b class="num" id="miniTime">--:--:--</b></div>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="btnStart" type="button">🏃 출근하기</button>
+      <button class="btn" id="btnPause" type="button" disabled>⏸ 일시정지</button>
+      <div class="speed" id="speedGroup" role="group" aria-label="게임 속도"></div>
+      <button class="btn icon" id="btnSound" type="button" aria-label="효과음 켜기/끄기">🔊</button>
+    </div>
+  </header>
+
+  <nav class="sidenav" id="sidenav" aria-label="메인 메뉴">
+    <button class="nav-btn" data-view="dash" aria-current="true" type="button"><span class="ic">📊</span>대시보드</button>
+    <button class="nav-btn" data-view="log" type="button"><span class="ic">🧍</span>오늘의 손님</button>
+    <button class="nav-btn" data-view="anger" type="button"><span class="ic">🔥</span>분노 기록</button>
+    <button class="nav-btn" data-view="items" type="button"><span class="ic">🎒</span>아이템</button>
+    <button class="nav-btn" data-view="ach" type="button"><span class="ic">🏆</span>업적</button>
+    <button class="nav-btn" data-view="stats" type="button"><span class="ic">📈</span>통계</button>
+    <button class="nav-btn" data-view="settings" type="button"><span class="ic">⚙️</span>설정</button>
+    <div class="nav-foot">단축키<br>1~4 대응 선택<br>Space 일시정지<br>Enter 다음 손님</div>
+  </nav>
+
+  <main class="stage">
+    <section class="card clock-card" aria-label="퇴근 카운트다운">
+      <div class="clock-label" id="clockLabel">퇴근까지 남은 시간</div>
+      <div class="clock-digits num" id="clockDigits">09 : 00 : 00</div>
+      <div class="clock-sub">현재 <b class="num" id="nowTime">09:00</b> · 오늘은 <b class="num" id="endTime">18:00</b>에 퇴근합니다<span id="otBadge"></span></div>
+      <div class="progress">
+        <span id="pStart">09:00 출근</span>
+        <div class="pbar" role="progressbar" aria-label="근무 진행도" aria-valuemin="0" aria-valuemax="100" id="pbar"><div class="pfill" id="pfill"></div></div>
+        <span id="pEnd">18:00 퇴근</span>
+      </div>
+      <div><span class="pct num" id="pPct">0.0%</span> <span style="color:var(--dim);font-size:13px">근무 진행도</span></div>
+      <div class="closing-banner" id="closingBanner" hidden>⚠ 마감 시간 접근 중</div>
+    </section>
+
+    <section class="card scene-card" id="sceneCard" aria-live="polite">
+      <div class="scene-body" id="scene"></div>
+    </section>
+
+    <section class="card" aria-label="아이템">
+      <div class="itembar" id="itembar"></div>
+    </section>
+  </main>
+
+  <aside class="status">
+    <section class="card status-card" aria-label="현재 상태">
+      <div class="card-title">STATUS <span class="ko">현재 상태</span></div>
+      <div class="stats-list">
+        <div class="gauge anger" id="angerBox">
+          <div class="g-head"><span class="g-name">🔥 분노</span><span class="anger-stage" id="angerStage">평온</span></div>
+          <div class="g-head"><span class="anger-num num" id="angerNum">0%</span></div>
+          <div class="bar" id="angerBar"><i id="angerFill"></i></div>
+          <div class="ticks"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></div>
+        </div>
+        <div class="gauge" id="g-mental"><div class="g-head"><span class="g-name">🧠 멘탈</span><span class="g-val num" id="v-mental">80</span></div><div class="bar"><i id="f-mental" style="--c:var(--sky)"></i></div></div>
+        <div class="gauge" id="g-stamina"><div class="g-head"><span class="g-name">❤️ 체력</span><span class="g-val num" id="v-stamina">100</span></div><div class="bar"><i id="f-stamina" style="--c:var(--red)"></i></div></div>
+        <div class="gauge" id="g-kind"><div class="g-head"><span class="g-name">😊 친절</span><span class="g-val num" id="v-kind">50</span></div><div class="bar"><i id="f-kind" style="--c:var(--green)"></i></div></div>
+        <div class="gauge" id="g-rep"><div class="g-head"><span class="g-name">⭐ 고객 평판</span><span class="g-val num" id="v-rep">3.0</span></div><div class="stars" id="stars"></div></div>
+        <div class="gauge" id="g-caffeine"><div class="g-head"><span class="g-name">☕ 카페인</span><span class="g-val num" id="v-caffeine">0/5</span></div><div class="cups" id="cups"></div></div>
+      </div>
+    </section>
+
+    <section class="card combo-card" aria-label="진상 콤보">
+      <div class="card-title" style="justify-content:center">COMBO</div>
+      <div class="combo-num num" id="comboNum">×0</div>
+      <div class="combo-msg" id="comboMsg">진상손님이 연속으로 오면 콤보가 쌓입니다.</div>
+      <div class="hell-tag" id="hellTag" hidden>🔥 HELL MODE · 분노 ×1.5 🔥</div>
+    </section>
+
+    <details class="card devpanel setpanel" id="setpanel">
+      <summary>SETTINGS · ⚙️ 근무 설정</summary>
+      <div id="setBody"></div>
+    </details>
+
+    <details class="card devpanel" id="devpanel">
+      <summary>DEV TEST PANEL · 개발자 테스트</summary>
+      <div class="dev-grid">
+        <button class="btn small" type="button" data-dev="jinsang">😠 진상손님 호출</button>
+        <button class="btn small" type="button" data-dev="drunk">🍺 취객 호출</button>
+        <button class="btn small" type="button" data-dev="kiosk">🤖 키오스크 손님</button>
+        <button class="btn small" type="button" data-dev="angel">😇 천사손님 호출</button>
+        <button class="btn small" type="button" data-dev="rare">✨ 희귀손님 호출</button>
+        <button class="btn small" type="button" data-dev="event">⚡ 랜덤 이벤트</button>
+        <button class="btn small" type="button" data-dev="up">🔥 분노 +10</button>
+        <button class="btn small" type="button" data-dev="down">💧 분노 -10</button>
+        <button class="btn small" type="button" data-dev="hell">😈 HELL 콤보 ×4</button>
+        <button class="btn small" type="button" data-dev="lastmin">⏰ 퇴근 1분 전</button>
+        <button class="btn small" type="button" data-dev="over">💥 게임오버 테스트</button>
+        <button class="btn small" type="button" data-dev="clear">🎉 퇴근 성공 테스트</button>
+      </div>
+    </details>
+  </aside>
+
+  <section class="tray" id="tray" aria-live="off"></section>
+</div>
+
+<div class="fx-vignette" aria-hidden="true"></div>
+<div class="critical" id="critical" hidden>⚠ MENTAL CRITICAL ⚠</div>
+<div class="breakdown" id="breakdown" hidden>MENTAL<br>BREAKDOWN</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="overlay" id="overlay" hidden></div>
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+<script>
+'use strict';
+/* =====================================================================
+   퇴근까지 버텨라! – 분노 게이지 시뮬레이터
+   ─ 데이터 영역: 새 손님·상황·사건·아이템은 아래 배열에 객체만 추가하면 됩니다.
+   ─ 상황(scenario) 형식
+     { id, jobs?:['cafe'], lines:[['c'|'s'|'n', '대사']], choices:[...],
+       loop?:[최소,최대], loopLines?:[], receipt?:true, arrivalFx?:{} }
+     lines 화자: c=손님, s=나(직원), n=상황 설명
+     토큰: {product} {price} {branch} {boss} {place}
+   ─ 선택지(choice) 형식
+     { text, style:'std|dodge|humor|risk|inner', fx:{anger,mental,stamina,kind,rep,caffeine,overtime},
+       result, inner?, held?, loop?, outcomes?:[{p, fx, result}] }  또는 CHOICES 키 문자열 / {ref:'키', ...덮어쓰기}
+   ===================================================================== */
+
+const STYLE_META = {
+  std:   { label: '정석형', cls: 'st-std' },
+  dodge: { label: '회피형', cls: 'st-dodge' },
+  humor: { label: '유머형', cls: 'st-humor' },
+  risk:  { label: '위험형', cls: 'st-risk' },
+  inner: { label: '속마음', cls: 'st-inner' },
+};
+
+const STAT_META = {
+  anger:    { label: '분노', icon: '🔥', min: 0, max: 100, goodWhenUp: false },
+  mental:   { label: '멘탈', icon: '🧠', min: 0, max: 100, goodWhenUp: true },
+  stamina:  { label: '체력', icon: '❤️', min: 0, max: 100, goodWhenUp: true },
+  kind:     { label: '친절', icon: '😊', min: 0, max: 100, goodWhenUp: true },
+  rep:      { label: '평판', icon: '⭐', min: 0, max: 5, goodWhenUp: true },
+  caffeine: { label: '카페인', icon: '☕', min: 0, max: 5, goodWhenUp: null },
+  overtime: { label: '퇴근', icon: '⏰', goodWhenUp: false },
+};
+
+const ANGER_STAGES = [
+  { max: 20,  name: '평온',            color: 'var(--mint)' },
+  { max: 40,  name: '신경 쓰임',        color: 'var(--green)' },
+  { max: 60,  name: '짜증',            color: 'var(--yellow)' },
+  { max: 80,  name: '극대노 직전',      color: 'var(--orange)' },
+  { max: 99,  name: '이성을 잃기 직전',  color: 'var(--red)' },
+  { max: 100, name: '멘탈 붕괴',        color: 'var(--red)' },
+];
+
+/* 재사용 선택지 라이브러리 */
+const CHOICES = {
+  inner_scream: { text: '마음속으로만 외친다', style: 'inner', inner: '집에 좀 가세요!!!', fx: { anger: -3 }, held: true,
+    result: '실제로 말하지 않았으므로 평판 변화는 없습니다. 표정은 완벽한 미소.' },
+  inner_sigh: { text: '(한숨을 삼키고 미소 유지)', style: 'inner', inner: '월급… 월급을 생각하자…', fx: { anger: -2, mental: -1 }, held: true,
+    result: '겉은 미소, 속은 태풍. 아무도 눈치채지 못했다.' },
+  std_recheck: { text: '“제가 다시 한번 확인해드리겠습니다.”', style: 'std', fx: { anger: 5, rep: 0.3, kind: 3 },
+    result: '확인 결과는 역시 처음 말씀드린 그대로였다. 손님은 마지못해 수긍했다.' },
+  call_manager_line: { text: '“매니저님을 불러드리겠습니다.”', style: 'dodge', fx: { anger: 2, mental: -2, rep: 0.05 },
+    result: '매니저님이 오는 3분이 30분처럼 느껴졌다. 그래도 공은 넘어갔다.' },
+  humor_owner: { text: '“저도 사장님 찾고 싶습니다.”', style: 'humor', fx: { anger: -10, rep: -0.5, kind: -3 },
+    result: '손님이 잠시 할 말을 잃었다. 당신은 조금 후련해졌다.' },
+  policy_sorry: { text: '“죄송하지만 규정상 어렵습니다.”', style: 'std', fx: { anger: 4, rep: 0.15, mental: -2 },
+    result: '손님은 “규정, 규정…” 중얼거리며 물러났다.' },
+  smile_yes: { text: '“네~ 고객님^^”', style: 'std', fx: { anger: 3, kind: 4, rep: 0.1, mental: -3 },
+    result: '프로의 미소. 광대뼈가 살짝 저리다.' },
+};
+
+/* 속마음 선택지 생성 도우미 (데이터 작성 편의용) */
+function innerChoice(inner, extra = {}) {
+  return Object.assign({ ref: 'inner_scream', inner }, extra);
+}
+
+/* ---------------------------------------------------------------------
+   손님 데이터
+   probability: 등장 가중치 · angerMin/Max: 등장 시 분노 · jinsang: 진상 콤보 대상
+   toggle: 설정 ON/OFF 키 · rare: 희귀손님 · closingBoost: 마감 10분 전 가중치 증가
+   statKey: 통계 카운트 키 · special: 특수 등장(일반 추첨 제외)
+--------------------------------------------------------------------- */
+const CUSTOMERS = [
+  {
+    id: 'jinsang', name: '진상손님', icon: '😠', type: 'customer', jinsang: true,
+    angerMin: 10, angerMax: 25, probability: 15, statKey: 'jinsang',
+    scenarios: [
+      { id: 'jin_regular', lines: [['c', '내가 여기 단골인데 그것도 못 해줘?'], ['s', '죄송합니다, 해당 요청은 도와드리기 어렵습니다.'], ['c', '다른 직원은 해줬거든? 이름이 뭐예요?']],
+        choices: ['std_recheck',
+          { text: '“그 직원분이 실수하신 것 같습니다.”', style: 'dodge', fx: { anger: 3, rep: -0.1, mental: -2 }, result: '손님이 “그럼 그 직원 불러와!”라고 했다. 그 직원은 오늘 휴무다.' },
+          { text: '“단골 포인트는 제 마음속에 적립해 두겠습니다.”', style: 'humor', fx: { anger: -8, rep: -0.2 }, result: '손님이 어이없다는 듯 웃고는 결제만 하고 나갔다.' },
+          innerChoice('단골이면 규정도 단골로 아셔야죠…')] },
+      { id: 'jin_boss', lines: [['c', '사장 나오라고 해!'], ['s', '지금 {boss}께서는 자리에 안 계십니다.'], ['c', '그럼 전화해! 지금 당장!']],
+        choices: ['std_recheck', 'call_manager_line', 'humor_owner', innerChoice('집에 좀 가세요!!!')] },
+      { id: 'jin_repeat', lines: [['c', '그래서 이게 된다는 거예요, 안 된다는 거예요?'], ['n', '(이미 세 번 설명했다)'], ['c', '아니 쉽게 좀 설명해 봐요.']],
+        choices: [
+          { text: '“천천히 처음부터 다시 설명드리겠습니다.”', style: 'std', fx: { anger: 6, kind: 5, rep: 0.3, stamina: -3 }, result: '네 번째 설명 끝에 손님이 “아~ 진작 그렇게 말하지”라고 했다.' },
+          { text: '“안내문을 보여드릴게요.”', style: 'dodge', fx: { anger: 2, rep: 0 }, result: '손님은 안내문을 보지 않고 당신을 봤다. 결국 다섯 번째 설명을 했다.' },
+          { text: '“아까 세 번 말씀드렸는데요.”', style: 'risk', fx: { anger: -8, rep: -0.5, kind: -5 }, result: '손님 얼굴이 빨개졌다. 당신 얼굴은 편안해졌다.' },
+          innerChoice('녹음기를 사 올 걸 그랬다.', { text: '(속으로 네 번째 설명 시작)' })] },
+      { id: 'jin_voice', lines: [['n', '손님의 목소리가 점점 커진다. 다른 손님들이 쳐다보기 시작한다.'], ['c', '내가 지금 화를 안 내게 생겼어요?!']],
+        choices: [
+          { text: '“불편을 드려 정말 죄송합니다.”', style: 'std', fx: { anger: 6, rep: 0.3, mental: -3 }, result: '사과를 세 번 하자 목소리가 두 단계 내려갔다.' },
+          { text: '“잠시 저쪽에서 말씀 나누실까요?”', style: 'dodge', fx: { anger: 3, rep: 0.1, stamina: -2 }, result: '구석으로 모시자 관객이 사라졌고, 손님의 기세도 사라졌다.' },
+          { text: '“고객님, 목소리가 매장 음악보다 크십니다^^”', style: 'humor', fx: { anger: -9, rep: -0.4 }, result: '주변 손님들이 킥킥 웃었다. 진상손님은 조용히 퇴장했다.' },
+          innerChoice('볼륨 조절 버튼은 어디 있나요…')] },
+    ],
+  },
+  {
+    id: 'kiosk', name: '키오스크 도움 요청', icon: '🤖', type: 'customer', toggle: 'kiosk',
+    angerMin: 5, angerMax: 15, probability: 12, statKey: 'kiosk',
+    scenarios: [
+      { id: 'kiosk_pay', lines: [['c', '이거 왜 안 돼?'], ['s', '결제 버튼을 눌러주세요.'], ['c', '그게 어딨어?'], ['s', '지금 손가락 바로 위에 있습니다.']],
+        choices: [
+          { text: '“제가 같이 눌러드릴게요!”', style: 'std', fx: { anger: 2, kind: 8, rep: 0.3, stamina: -2 }, result: '결제 성공! 손님이 “이제 알겠네” 하고 웃었다. 다음에도 모를 확률 98%.' },
+          { text: '“화면 오른쪽 아래 초록 버튼입니다.”', style: 'std', fx: { anger: 5, kind: 3, rep: 0.1 }, result: '손님은 왼쪽 위를 눌렀다. 그래도 어찌어찌 결제는 됐다.' },
+          { text: '“카운터에서 주문 도와드릴게요.”', style: 'dodge', fx: { anger: 1, stamina: -3, rep: 0.2 }, result: '결국 사람이 받는 주문. 키오스크는 오늘도 장식품.' },
+          innerChoice('손가락을 조금만 들어보세요… 거기 있어요…')] },
+      { id: 'kiosk_point', lines: [['c', '포인트 적립은 어디서 해? 번호 쳤는데 안 되는데.'], ['n', '화면에는 “주문 취소”가 눌려 있다.']],
+        choices: [
+          { text: '“처음부터 다시 도와드릴게요.”', style: 'std', fx: { anger: 4, kind: 6, rep: 0.2, stamina: -2 }, result: '주문을 처음부터 다시 넣었다. 적립 성공. 손님이 엄지를 들어줬다.' },
+          { text: '“키오스크도 가끔 사람을 가려요^^”', style: 'humor', fx: { anger: -4, rep: 0.1, kind: 2 }, result: '손님이 “얘가 나를 싫어하나 봐” 하며 웃었다.' },
+          { text: '“적립은 다음에 해드려도 될까요?”', style: 'dodge', fx: { anger: 0, rep: -0.2 }, result: '손님이 서운한 표정으로 영수증을 챙겼다.' },
+          innerChoice('취소 버튼은 어떻게 그렇게 잘 찾으시는 거죠…')] },
+      { id: 'kiosk_menu', lines: [['c', '이 기계에 {product}가 없잖아.'], ['n', '화면 한가운데에 {product} 사진이 가장 크게 떠 있다.']],
+        choices: [
+          { text: '“여기 가운데 있어요! 같이 찾아볼까요?”', style: 'std', fx: { anger: 3, kind: 6, rep: 0.2 }, result: '손님이 “아이고 이렇게 큰 걸 못 봤네” 하며 머쓱해했다.' },
+          { text: '“숨은 그림 찾기처럼 숨어 있었네요.”', style: 'humor', fx: { anger: -3, kind: 3, rep: 0.1 }, result: '손님이 껄껄 웃었다. 평화로운 해결.' },
+          { text: '“화면 한가운데요. 제일 큰 거요.”', style: 'risk', fx: { anger: -6, rep: -0.3, kind: -4 }, result: '팩트는 정확했지만 손님의 자존심이 다쳤다.' },
+          innerChoice('제일 큰 사진이 그거예요…')] },
+    ],
+  },
+  {
+    id: 'drunk', name: '취객', icon: '🍺', type: 'customer', jinsang: true, toggle: 'drunk', closingBoost: true,
+    angerMin: 8, angerMax: 20, probability: 7, statKey: 'drunk',
+    scenarios: [
+      { id: 'drunk_loop', loop: [2, 4],
+        lines: [['c', '내가아~ 여기 사장이랑 형 동생 하는 사이야~'], ['s', '네, 고객님. 결제 도와드릴까요?'], ['c', '아니 근데… 내가 누군지 알아?']],
+        loopLines: ['아니 근데에~ 내가 누군지 아냐고~', '내가 말이야~ 여기 사장이랑… 형 동생…', '(아까 한 말을 처음부터 다시 한다)', '근데 너 몇 살이야? 우리 조카 닮았네~'],
+        choices: [
+          { text: '“네~ 알겠습니다. 결제 도와드릴게요.”', style: 'std', loop: true, fx: { anger: 5, kind: 3, rep: 0.1 }, result: '결제 완료. 손님은 “또 올게~”라며 문에 두 번 부딪히고 나갔다.' },
+          { text: '“물 한 잔 드릴까요?”', style: 'dodge', fx: { anger: 3, kind: 5, stamina: -2 }, result: '물을 마시고 조용해졌다… 딱 3분 동안만. 그 사이 계산을 끝냈다.' },
+          { text: '“저도 사장님이랑 친해요. 월급으로요.”', style: 'humor', fx: { anger: -7, rep: -0.1 }, result: '손님이 박장대소하더니 악수를 청하고 떠났다.' },
+          innerChoice('같은 얘기가 몇 번째인지 세는 것도 포기했다.')] },
+      { id: 'drunk_friend', loop: [2, 3],
+        lines: [['c', '야~ 너도 한잔할래? 내가 쏠게~'], ['n', '손님이 옆 손님 어깨에 팔을 두른다. 옆 손님이 굳었다.']],
+        loopLines: ['아니 한잔만~ 딱 한잔만~', '(옆 손님에게) 형씨, 이 직원 착하지~?', '우리 오늘 처음 만났지만 친구야~'],
+        choices: [
+          { text: '“근무 중이라서요. 감사합니다^^”', style: 'std', loop: true, fx: { anger: 5, kind: 2, rep: 0.1 }, result: '손님이 “아쉽네~” 하며 드디어 계산대를 떠났다.' },
+          { text: '“다른 손님께는 말 걸지 말아주세요.”', style: 'std', fx: { anger: 6, rep: 0.3, mental: -3 }, result: '옆 손님이 당신에게 고맙다는 눈빛을 보냈다.' },
+          { text: '“택시 불러드릴까요? 지금 바로요.”', style: 'risk', fx: { anger: -9, rep: -0.2 }, result: '손님이 “야박하네~” 하면서도 순순히 나갔다.' },
+          { text: '“저 퇴근 알레르기가 있어서요.”', style: 'humor', fx: { anger: -6, kind: 1 }, result: '손님이 무슨 말인지 모르겠다는 얼굴로 한참 웃다가 나갔다.' }] },
+      { id: 'drunk_calc', loop: [2, 3],
+        lines: [['c', '이거 계산이 이상한데~? 나 만 원 냈잖아~'], ['n', '손님은 5천 원을 냈다. 나머지 5천 원은 아직 손님 손에 쥐어져 있다.']],
+        loopLines: ['아니 만 원 냈다니까아~', '(손에 쥔 지폐를 흔들며) 이거 봐, 냈다니까~'],
+        choices: [
+          { text: '“고객님, 손에 쥐고 계신 게 나머지 5천 원입니다.”', style: 'std', loop: true, fx: { anger: 6, rep: 0.1, stamina: -2 }, result: '손님이 손을 펴 보고 “어? 마술이네~” 하며 5천 원을 더 냈다.' },
+          { text: '“CCTV 같이 확인해볼까요?”', style: 'dodge', fx: { anger: 3, mental: -2 }, result: '“아 됐어 됐어~” 손님이 슬그머니 5천 원을 더 내고 나갔다.' },
+          { text: '“고객님 손이 지갑보다 빠르시네요!”', style: 'humor', fx: { anger: -5 }, result: '손님이 칭찬인 줄 알고 기분 좋게 계산했다.' },
+          innerChoice('만 원은 꿈에서나 내셨어요…')] },
+    ],
+  },
+  {
+    id: 'hurry', name: '급한 손님', icon: '⏱️', type: 'customer', jinsang: true,
+    angerMin: 8, angerMax: 18, probability: 9,
+    scenarios: [
+      { id: 'hurry_first', lines: [['c', '저 지금 급하거든요? 이것만 먼저 해주면 안 돼요?'], ['n', '뒤에 줄 선 손님 네 명이 동시에 당신을 쳐다본다.']],
+        choices: [
+          { text: '“죄송하지만 순서대로 도와드리겠습니다.”', style: 'std', fx: { anger: 5, rep: 0.2, mental: -2 }, result: '급한 손님이 한숨을 서른 번 쉬었다. 뒷줄은 당신을 존경의 눈빛으로 봤다.' },
+          { text: '“뒤 손님들께 양해를 구해볼게요.”', style: 'dodge', fx: { anger: 3, rep: -0.1, kind: 3 }, result: '뒷줄 손님 한 명이 조용히 리뷰 앱을 켰다.' },
+          { text: '“저도 급합니다. 퇴근이요.”', style: 'humor', fx: { anger: -7, rep: -0.2 }, result: '뒷줄에서 박수가 나왔다. 급한 손님은 할 말을 잃었다.' },
+          innerChoice('급하시면 어제 오시지 그러셨어요…')] },
+      { id: 'hurry_fast', lines: [['c', '빨리빨리 좀요! 아 진짜 느리네.'], ['n', '당신은 이미 최고 속도로 일하고 있다.']],
+        choices: [
+          { text: '“최대한 빨리 도와드리겠습니다!”', style: 'std', fx: { anger: 6, stamina: -5, rep: 0.2 }, result: '손이 안 보일 정도로 빨라졌다. 손목이 시큰하다.' },
+          { text: '“이게 제 최고 속도입니다. 2배속은 유료예요.”', style: 'risk', fx: { anger: -9, rep: -0.4 }, result: '손님이 “뭐라고요?” 하는 사이 계산이 끝났다.' },
+          { text: '“잠시만요, 금방 됩니다.” (그리고 천천히)', style: 'dodge', fx: { anger: -2, rep: -0.1 }, result: '당신의 손이 미묘하게 느려졌다. 작은 복수는 달콤했다.' },
+          innerChoice('빨리빨리는 제 전생 이름입니다.')] },
+    ],
+  },
+  {
+    id: 'discount', name: '할인 요구형', icon: '💸', type: 'customer', jinsang: true,
+    angerMin: 8, angerMax: 18, probability: 8,
+    scenarios: [
+      { id: 'disc_regular', lines: [['c', '단골인데 좀 깎아줘요.'], ['s', '죄송합니다, 정가 판매만 가능합니다.'], ['c', '사장님은 해주시던데?']],
+        choices: ['policy_sorry',
+          { text: '“{boss} 계실 때 다시 오시면…”', style: 'dodge', fx: { anger: 3, rep: 0 }, result: '손님이 “그럼 사장 언제 와?”라고 물었다. 모른다고 했다.' },
+          { text: '“제 월급이 깎이면 가능할 수도 있는데요…”', style: 'humor', fx: { anger: -7, rep: -0.2 }, result: '손님이 “그건 좀…” 하며 정가를 냈다.' },
+          innerChoice('사장님이 해주셨으면 사장님한테 가세요…')] },
+      { id: 'disc_coupon', lines: [['c', '이 쿠폰 기간 지났다고요? 겨우 사흘 지났는데?'], ['n', '쿠폰 유효기간: 작년.']],
+        choices: [
+          { text: '“이번엔 어렵고, 새 쿠폰 받는 법을 알려드릴게요.”', style: 'std', fx: { anger: 4, rep: 0.3, kind: 4 }, result: '손님이 새 쿠폰 앱을 깔았다. 알림 폭탄은 손님 몫이다.' },
+          { text: '“사흘이 아니라 1년 사흘입니다.”', style: 'risk', fx: { anger: -8, rep: -0.4 }, result: '손님이 날짜를 다시 보더니 조용히 쿠폰을 접었다.' },
+          { text: '“본사 규정이라 저도 어쩔 수가 없네요.”', style: 'dodge', fx: { anger: 2, rep: 0.05 }, result: '본사는 오늘도 당신의 방패가 되어주었다.' },
+          innerChoice('그 쿠폰은 이미 유물입니다. 박물관에 기증하세요.')] },
+      { id: 'disc_bundle', lines: [['c', '1+1인데 하나만 사면 반값 되는 거 아니에요?']],
+        choices: [
+          { text: '“1+1은 두 개를 가져가셔야 적용돼요.”', style: 'std', fx: { anger: 4, rep: 0.1, kind: 2 }, result: '손님이 “그럼 손해잖아” 하며 한참 계산기를 두드렸다.' },
+          { text: '“하나 더 가져오시면 공짜예요!”', style: 'dodge', fx: { anger: 1, rep: 0.2 }, result: '‘공짜’라는 말에 손님 눈이 반짝였다. 문제 해결.' },
+          { text: '“그럼 저는 반만 출근해도 되는 거죠?”', style: 'humor', fx: { anger: -7, rep: -0.2 }, result: '손님이 웃는 건지 화난 건지 모를 얼굴로 나갔다.' },
+          innerChoice('수학 선생님께 죄송해집니다.')] },
+    ],
+  },
+  {
+    id: 'rulebreaker', name: '규정 무시형', icon: '📜', type: 'customer', jinsang: true,
+    angerMin: 10, angerMax: 20, probability: 8,
+    scenarios: [
+      { id: 'rule_other', lines: [['c', '다른 데서는 해줬는데요?'], ['s', '저희 매장은 규정상 어렵습니다.'], ['c', '{branch}은 해주던데? 거기 가서 물어볼까요?'], ['n', '⚡ 특수 공격: 다른 매장 소환!']],
+        choices: ['policy_sorry',
+          { text: '“그 지점이 친절하기로 유명하죠^^”', style: 'humor', fx: { anger: -6, rep: -0.1 }, result: '손님이 칭찬인지 비꼬는 건지 헷갈려하며 돌아갔다.' },
+          { text: '“그 지점 번호 알려드릴까요?”', style: 'dodge', fx: { anger: -3, rep: -0.2 }, result: '손님이 “됐어요!” 하고 나갔다. {branch} 직원에게 속으로 사과했다.' },
+          { text: '“그럼 그 지점으로 가시면 됩니다.”', style: 'risk', fx: { anger: -12, rep: -0.6, kind: -6 }, result: '문이 쾅 닫혔다. 속은 시원한데 평판이 떨어지는 소리가 들렸다.' }] },
+      { id: 'rule_outside', lines: [['c', '외부 음식 좀 먹을게요. 금방 먹어요.'], ['n', '손님은 이미 치킨 상자를 열었다. 냄새가 매장을 점령한다.']],
+        choices: [
+          { text: '“죄송하지만 외부 음식은 반입이 어렵습니다.”', style: 'std', fx: { anger: 5, rep: 0.2 }, result: '손님이 투덜대며 상자를 닫았다. 냄새는 30분간 남았다.' },
+          { text: '“포장해 가시게 봉투 드릴게요.”', style: 'dodge', fx: { anger: 2, kind: 4, rep: 0.1 }, result: '손님이 봉투를 받고 순순히 나갔다. 봉투 하나로 평화를 샀다.' },
+          { text: '“한 조각 주시면 못 본 걸로 할게요.”', style: 'humor', fx: { anger: -8, rep: -0.2, stamina: 5 }, result: '손님이 진짜 한 조각을 줬다. 규정은 무너졌지만 배는 불렀다.' },
+          innerChoice('냄새라도 맡게 해주셔서 감사합니다…')] },
+    ],
+  },
+  {
+    id: 'calc', name: '계산 트집형', icon: '🧾', type: 'customer', jinsang: true, closingBoost: true,
+    angerMin: 8, angerMax: 18, probability: 7,
+    scenarios: [
+      { id: 'calc_500', receipt: true, lines: [['c', '500원이 왜 더 나왔어요?'], ['n', '🧾 영수증 검토 이벤트 발생!']],
+        choices: [
+          { text: '“영수증을 한 줄씩 같이 확인해보겠습니다.”', style: 'std', fx: {},
+            outcomes: [
+              { p: 0.7, fx: { anger: 4, rep: 0.3, kind: 3 }, result: '확인 결과 봉투값 500원이었다. 손님은 “아 그거…” 하고 사라졌다.' },
+              { p: 0.3, fx: { anger: 6, rep: -0.1, mental: -4 }, result: '진짜 당신의 실수였다. 500원을 돌려드리며 고개를 숙였다.' }] },
+          { text: '“500원 빼드릴게요.”', style: 'dodge', fx: { anger: -2, rep: 0.1, mental: -3 }, result: '500원으로 평화를 샀다. 정산 때 500원이 빌 예정이다.' },
+          { text: '“그 500원은 제 미소 값입니다^^”', style: 'humor', fx: { anger: -6, rep: -0.3 }, result: '손님이 “미소가 비싸네” 하고 나갔다.' },
+          innerChoice('봉투값입니다… 봉투 들고 계시잖아요…')] },
+      { id: 'calc_price', receipt: true, lines: [['c', '진열대에는 {price}원이라고 써 있었는데요?'], ['n', '가격표는 옆 상품의 것이다… 아마도.']],
+        choices: [
+          { text: '“같이 진열대에 가서 확인해볼게요.”', style: 'std', fx: {},
+            outcomes: [
+              { p: 0.75, fx: { anger: 5, stamina: -3, rep: 0.2 }, result: '옆 상품 가격표였다. 손님은 “헷갈리게 해놨네” 하며 탓을 매장에 돌렸다.' },
+              { p: 0.25, fx: { anger: 3, rep: 0.2, mental: -2 }, result: '가격표 교체가 안 되어 있었다. 차액을 돌려드리고 가격표를 고쳤다.' }] },
+          { text: '“이번엔 표시 가격으로 해드릴게요.”', style: 'dodge', fx: { anger: 0, rep: 0.2, mental: -3 }, result: '손님은 만족했고, 당신의 정산표는 불만족했다.' },
+          { text: '“가격표 옆 화살표 보이시죠? 옆 상품이에요.”', style: 'risk', fx: { anger: -7, rep: -0.3 }, result: '손님이 화살표를 한참 노려보다 결제했다.' },
+          innerChoice('가격표를 믿지 말고 저를 믿어주세요…')] },
+      { id: 'calc_change', lines: [['c', '거스름돈 덜 준 거 아니에요? 다시 세어 봐요.'], ['n', '손님은 동전을 세 번째 세고 있다.']],
+        choices: [
+          { text: '“천천히 같이 세어 드리겠습니다.”', style: 'std', fx: { anger: 5, kind: 3, rep: 0.2, stamina: -2 }, result: '딱 맞았다. 손님은 “그럼 됐고” 하고 떠났다. 사과는 없었다.' },
+          { text: '“동전 세기 대회 나가셔도 되겠어요.”', style: 'humor', fx: { anger: -5, rep: -0.1 }, result: '손님이 뿌듯해하며 나갔다. 칭찬으로 들린 모양이다.' },
+          { text: '“영수증에 거스름돈 금액이 나와 있습니다.”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '영수증이 당신 대신 싸워줬다.' },
+          innerChoice('100원짜리가 발밑에 떨어져 있어요…')] },
+    ],
+  },
+  {
+    id: 'banmal', name: '반말형', icon: '🗯️', type: 'customer', jinsang: true, angerBonus: 5,
+    angerMin: 5, angerMax: 15, probability: 7,
+    scenarios: [
+      { id: 'banmal_give', lines: [['c', '야, 이거 줘.'], ['n', '(첫마디부터 반말이다. 기본 분노 +5)']],
+        choices: [
+          { text: '“네, 고객님. 어떤 거 드릴까요?”', style: 'std', fx: { anger: 5, kind: 4, rep: 0.2, mental: -3 }, result: '끝까지 존댓말로 응대했다. 인격의 승리.' },
+          { text: '“네~ 고객님, 저도 반말 해도 될까요?”', style: 'humor', fx: { anger: -7, rep: -0.3, kind: -2 }, result: '손님이 당황해서 존댓말로 바꿨다. 작은 승리.' },
+          { text: '“초면에 반말은 좀…”', style: 'risk', fx: { anger: -10, rep: -0.5, kind: -5 }, result: '손님이 “뭐?!” 하더니 씩씩대며 나갔다. 심장은 쿵쾅, 기분은 상쾌.' },
+          innerChoice('‘야’는 제 이름이 아닙니다.')] },
+      { id: 'banmal_that', lines: [['c', '그거. 그거 줘. 아 그거 있잖아, 파란 거.'], ['n', '파란 상품만 서른 가지다.']],
+        choices: [
+          { text: '“혹시 이거 말씀이세요?” (하나씩 짚어본다)', style: 'std', fx: { anger: 6, kind: 4, rep: 0.2, stamina: -3 }, result: '열한 번째에 맞혔다. 손님은 “그래 그거” 한마디만 했다.' },
+          { text: '“사진 있으시면 보여주시겠어요?”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '손님이 휴대폰 사진첩을 5분간 뒤졌다. 결국 찾았다.' },
+          { text: '“파란 거 전부 드릴까요?”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '손님이 “장난해?” 하더니 직접 찾아왔다. 그것은 초록색이었다.' },
+          innerChoice('제가 독심술 자격증이 없어서요…')] },
+    ],
+  },
+  {
+    id: 'tmi', name: 'TMI형', icon: '🗣️', type: 'customer',
+    angerMin: 3, angerMax: 10, probability: 7,
+    scenarios: [
+      { id: 'tmi_life', lines: [['n', '결제가 끝났다. 그런데 손님이 가지 않는다.'], ['c', '내가 원래 이 동네 살았거든? 그때는 여기가 논이었어. 우리 아들이 말이야…']],
+        choices: [
+          { text: '“아 그러셨군요~” (끝까지 들어드린다)', style: 'std', fx: { anger: 4, kind: 8, rep: 0.3, overtime: 5, stamina: -3 }, result: '아드님의 대학 입시 이야기까지 들었다. 퇴근이 5분 밀렸다.' },
+          { text: '“다음 손님 계셔서요~ 또 오세요!”', style: 'dodge', fx: { anger: 1, kind: -1 }, result: '손님이 아쉬운 표정으로 “다음에 2편 해줄게” 하고 나갔다.' },
+          { text: '“다음 편은 내일 이 시간에 들을게요!”', style: 'humor', fx: { anger: -5, rep: 0.1, kind: 3 }, result: '손님이 “연재하는 거야?” 하며 웃고 나갔다.' },
+          innerChoice('논이었던 시절로 돌아가고 싶습니다…', { fx: { anger: -1, overtime: 3 }, result: '듣는 척하는 사이 퇴근이 3분 밀렸다. 속마음은 아무도 모른다.' })] },
+      { id: 'tmi_diet', lines: [['c', '나 요즘 다이어트 하잖아~ 이거 칼로리 몇이야? 아 근데 어제 헬스장에서 트레이너가…']],
+        choices: [
+          { text: '“뒷면에 영양정보가 있어요. 같이 볼까요?”', style: 'std', fx: { anger: 3, kind: 5, rep: 0.2, overtime: 3 }, result: '영양정보와 함께 트레이너 험담 10분을 들었다. 퇴근 3분 지연.' },
+          { text: '“맛있으면 0칼로리래요!”', style: 'humor', fx: { anger: -5, kind: 3 }, result: '손님이 “그치?” 하며 두 개를 샀다. 매출 기여.' },
+          { text: '“죄송해요, 계산 먼저 할게요.”', style: 'dodge', fx: { anger: 1, rep: 0 }, result: '손님은 말을 멈추지 않은 채 결제하고 나갔다. 멀티태스킹 장인.' },
+          innerChoice('저는 오늘 점심도 못 먹었어요…')] },
+    ],
+  },
+  {
+    id: 'angel', name: '천사손님', icon: '😇', type: 'customer', good: true,
+    angerMin: -20, angerMax: -20, probability: 7, statKey: 'angel', arrivalFx: { mental: 10 },
+    scenarios: [
+      { id: 'angel_thanks', lines: [['c', '고생 많으시네요. 이거 하나 드세요.'], ['n', '손님이 비타민 음료를 건넨다. 세상에 아직 천사가 있다.']],
+        choices: [
+          { text: '“감사합니다! 좋은 하루 되세요!”', style: 'std', fx: { anger: -3, kind: 5, rep: 0.2, mental: 3 }, result: '진심으로 웃었다. 오늘 처음이다.' },
+          { text: '“혹시 매일 오실 수 있으세요?”', style: 'humor', fx: { anger: -5, kind: 3, rep: 0.1 }, result: '손님이 웃으며 “노력해볼게요”라고 했다.' },
+          { text: '“…혹시 몰래카메라인가요?”', style: 'risk', fx: { anger: -4, kind: -1 }, result: '“아니에요~” 손님이 웃었다. 진짜 천사였다.' },
+          innerChoice('눈물 날 것 같다…', { fx: { anger: -2, mental: 5 }, result: '마음속 에너지가 충전됐다.' })] },
+      { id: 'angel_tidy', lines: [['c', '제가 쓴 자리는 정리하고 갈게요~ 수고하세요!'], ['n', '쟁반이 반납되고 의자가 제자리로 돌아갔다.']],
+        choices: [
+          { text: '“정말 감사합니다! 또 오세요!”', style: 'std', fx: { anger: -3, kind: 4, rep: 0.2 }, result: '손님이 손을 흔들며 나갔다. 매장이 조금 밝아졌다.' },
+          { text: '“고객님 같은 분만 오시면 좋겠어요!”', style: 'humor', fx: { anger: -5, kind: 3 }, result: '손님이 쑥스럽게 웃었다.' },
+          innerChoice('이게 바로 정상적인 인류…', { fx: { anger: -3, mental: 3 } })] },
+      { id: 'angel_review', lines: [['c', '여기 직원분 친절하다고 리뷰 남겼어요!'], ['n', '휴대폰 화면에 별 다섯 개가 반짝인다.']],
+        choices: [
+          { text: '“감사합니다! 힘이 나네요!”', style: 'std', fx: { anger: -3, rep: 0.4, mental: 4 }, result: '평판이 올랐다. {boss}께 캡처해서 보내야겠다.' },
+          { text: '“액자에 걸어두겠습니다!”', style: 'humor', fx: { anger: -5, rep: 0.3 }, result: '손님이 “진짜요?” 하며 크게 웃었다.' },
+          innerChoice('이 리뷰로 한 달은 버틸 수 있다.', { fx: { anger: -3, mental: 6 } })] },
+    ],
+  },
+  {
+    id: 'child', name: '어린이 손님', icon: '🧒', type: 'customer', toggle: 'child',
+    angerMin: 2, angerMax: 8, probability: 5,
+    scenarios: [
+      { id: 'child_coins', lines: [['c', '이거 얼마예요?'], ['n', '아이가 동전을 한 움큼 내민다. 100원, 50원, 10원이 뒤섞여 있다. 뒤에는 줄이 길다.']],
+        choices: [
+          { text: '“같이 세어볼까?”', style: 'std', fx: { anger: 3, kind: 10, rep: 0.3, stamina: -3, mental: 5 }, result: '딱 맞았다! 아이가 “감사합니다!” 하고 90도 인사를 했다. 치유됐다.' },
+          { text: '“오늘은 특별히 VIP 동전 결제!”', style: 'humor', fx: { anger: -4, kind: 6, mental: 4 }, result: '아이가 “VIP래!” 하며 친구들에게 자랑하러 뛰어갔다.' },
+          { text: '“보호자분 어디 계시니?”', style: 'dodge', fx: { anger: 2, kind: 2 }, result: '밖에서 기다리던 엄마가 들어와 계산해줬다.' },
+          innerChoice('나도 저 나이로 돌아가고 싶다.')] },
+      { id: 'child_run', lines: [['n', '아이가 매장을 뛰어다니며 진열대를 두드린다. 보호자는 휴대폰을 보고 있다.'], ['c', '(보호자) 애가 그럴 수도 있죠~']],
+        choices: [
+          { text: '“다칠 수 있어서요, 손 잡아주시겠어요?”', style: 'std', fx: { anger: 5, rep: 0.2, mental: -2 }, result: '보호자가 마지못해 아이 손을 잡았다. 진열대는 살았다.' },
+          { text: '(아이에게) “여기 스티커 줄까?”', style: 'dodge', fx: { anger: 1, kind: 6 }, result: '스티커 하나에 아이가 얌전해졌다. 스티커는 위대하다.' },
+          { text: '“어머님도 그럴 수 있죠~ 계산은 두 배로~”', style: 'risk', fx: { anger: -8, rep: -0.4 }, result: '보호자가 “뭐라고요?” 하더니 아이를 데리고 나갔다.' },
+          innerChoice('그럴 수도 있는 건 휴대폰 보시는 것까지만…')] },
+    ],
+  },
+  {
+    id: 'normal', name: '일반손님', icon: '🙂', type: 'customer', good: true,
+    angerMin: 0, angerMax: 3, probability: 14,
+    scenarios: [
+      { id: 'normal_bag', lines: [['c', '봉투는 괜찮아요. 수고하세요~'], ['n', '평범하다. 평범함이 이렇게 소중할 줄이야.']],
+        choices: [
+          { text: '“감사합니다! 좋은 하루 되세요~”', style: 'std', fx: { anger: -3, kind: 2, rep: 0.1 }, result: '아무 일도 일어나지 않았다. 최고의 결과다.' },
+          { text: '“고객님 같은 분만 오시면 좋겠어요!”', style: 'humor', fx: { anger: -4, kind: 3 }, result: '손님이 멋쩍게 웃으며 나갔다.' },
+          innerChoice('이게 바로 정상인의 대화…', { fx: { anger: -3, mental: 2 } })] },
+      { id: 'normal_ask', lines: [['c', '혹시 {product} 있어요?'], ['s', '네, 저쪽 두 번째 칸에 있습니다.'], ['c', '아 감사합니다~']],
+        choices: [
+          { text: '“천천히 보세요~”', style: 'std', fx: { anger: -2, kind: 2, rep: 0.1 }, result: '손님이 한 번에 찾았다. 기적 같은 하루.' },
+          { text: '“제가 모셔다 드릴게요.”', style: 'std', fx: { anger: -1, kind: 5, rep: 0.2, stamina: -2 }, result: '손님이 고맙다며 하나를 더 샀다.' },
+          innerChoice('설명 한 번에 알아들으셨다… 감동…', { fx: { anger: -3, mental: 2 } })] },
+    ],
+  },
+  {
+    id: 'refund', name: '환불 손님', icon: '↩️', type: 'customer', jinsang: true, closingBoost: true,
+    angerMin: 10, angerMax: 20, probability: 5,
+    scenarios: [
+      { id: 'refund_used', lines: [['c', '이거 환불해 주세요. 한 번밖에 안 썼어요.'], ['n', '상품은 이미 반쯤 사라졌다. 영수증은 없다.']],
+        choices: ['policy_sorry',
+          { text: '“교환은 도와드릴 수 있을 것 같아요.”', style: 'std', fx: { anger: 4, rep: 0.2, kind: 3 }, result: '손님이 고민 끝에 교환을 선택했다. 절반의 승리.' },
+          { text: '“반쯤 드신 건 모르는 척… 은 안 됩니다.”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '손님이 민망한 듯 웃으며 물러났다.' },
+          { text: '“한 번에 이만큼이면 두 번이면 사라지겠네요.”', style: 'risk', fx: { anger: -10, rep: -0.5 }, result: '손님이 얼굴을 붉히며 나갔다. 리뷰가 걱정된다.' }] },
+      { id: 'refund_close', lines: [['n', '마감 직전, 손님이 봉투를 흔들며 들어온다.'], ['c', '어제 산 건데 환불 좀요. 지금 당장이요.']],
+        choices: [
+          { text: '“네, 확인 후 바로 처리해드릴게요.”', style: 'std', fx: { anger: 6, rep: 0.3, overtime: 3 }, result: '환불 처리하느라 마감 정산을 다시 했다. 퇴근 3분 지연.' },
+          { text: '“마감 정산 중이라 내일 오시면 바로 해드릴게요.”', style: 'dodge', fx: { anger: 2, rep: -0.1 }, result: '손님이 “내일 아침 일찍 올게요”라고 했다. 내일의 나에게 미안하다.' },
+          { text: '“어제 오셨으면 어제 해드렸을 텐데요.”', style: 'risk', fx: { anger: -9, rep: -0.4 }, result: '팩트가 너무 셌다. 손님은 말없이 봉투를 꽉 쥐었다.' },
+          innerChoice('왜… 왜 하필 지금…')] },
+    ],
+  },
+  /* ---------------- 희귀 손님 ---------------- */
+  {
+    id: 'owner_friend', name: '사장님 친구', icon: '🤝', type: 'customer', rare: true, jinsang: true,
+    angerMin: 10, angerMax: 20, probability: 2.5,
+    scenarios: [
+      { id: 'of_service', lines: [['c', '나 사장이랑 친한 사람이야. 알지? 그냥 서비스로 줘.']],
+        choices: [
+          { text: '“{boss}께 확인 전화 한번 드려볼게요.”', style: 'std', fx: {},
+            outcomes: [
+              { p: 0.6, fx: { anger: 3, rep: 0.2 }, result: '{boss}: “누구요? 모르는데요.” 손님은 조용히 결제했다.' },
+              { p: 0.4, fx: { anger: 7, mental: -4 }, result: '{boss}: “아~ 그 형님? 해드려~” 서비스가 나갔다. 당신의 정의도 같이 나갔다.' }] },
+          { text: '“{boss}께 서비스 금지령을 받아서요.”', style: 'dodge', fx: { anger: 2, rep: 0 }, result: '손님이 “그 친구 많이 변했네” 하며 정가를 냈다.' },
+          { text: '“저는 {boss}님이랑 안 친해서요.”', style: 'humor', fx: { anger: -8, rep: -0.2 }, result: '손님이 할 말을 잃었다.' },
+          innerChoice('사장님 친구는 전국에 몇 명일까…')] },
+    ],
+  },
+  {
+    id: 'internet_expert', name: '인터넷 전문가', icon: '🌐', type: 'customer', rare: true, jinsang: true,
+    angerMin: 10, angerMax: 18, probability: 2.5,
+    scenarios: [
+      { id: 'ie_blog', lines: [['c', '인터넷에서는 된다고 하던데요? 블로그에 다 나와 있어요.'], ['n', '손님이 휴대폰을 들이민다. 3년 전, 다른 브랜드 글이다.']],
+        choices: [
+          { text: '“해당 글은 다른 업체 내용 같습니다.”', style: 'std', fx: { anger: 5, rep: 0.2 }, result: '손님이 스크롤을 내리다 로고를 발견하고 조용해졌다.' },
+          { text: '“인터넷에선 저도 연예인입니다.”', style: 'humor', fx: { anger: -7, rep: -0.1 }, result: '손님이 피식 웃었다. 논쟁 종료.' },
+          { text: '“본사 고객센터에 문의해 보시겠어요?”', style: 'dodge', fx: { anger: 2, rep: 0 }, result: '고객센터 상담원에게 속으로 미리 사과했다.' },
+          innerChoice('인터넷이 계산도 해주면 좋겠네요…')] },
+    ],
+  },
+  {
+    id: 'review_threat', name: '리뷰 협박형', icon: '⭐', type: 'customer', rare: true, jinsang: true,
+    angerMin: 12, angerMax: 22, probability: 2.5,
+    scenarios: [
+      { id: 'rv_threat', lines: [['c', '이렇게 하시면 리뷰 남깁니다. 별 하나요.'], ['n', '손님이 이미 리뷰 작성 화면을 켜 두었다.']],
+        choices: [
+          { text: '“불편하셨던 점 말씀해주시면 개선하겠습니다.”', style: 'std', fx: { anger: 6, rep: 0.3, mental: -3 }, result: '손님이 리뷰 창을 닫았다. 대신 30분짜리 개선 요구 사항을 들었다.' },
+          { text: '“별 하나도 별입니다. 소중히 받겠습니다.”', style: 'humor', fx: { anger: -6, rep: -0.3 }, result: '손님이 웃음을 참다 실패했다. 리뷰는 별 셋이었다.' },
+          { text: '“리뷰 쓰는 법 알려드릴까요?”', style: 'risk', fx: { anger: -12 },
+            outcomes: [
+              { p: 0.5, fx: { rep: -0.8 }, result: '진짜로 별 1개 리뷰가 올라왔다. 제목: “직원 태도 최악”.' },
+              { p: 0.5, fx: { rep: -0.1 }, result: '손님이 당황해서 그냥 나갔다. 리뷰는 올라오지 않았다.' }] },
+          innerChoice('별 하나로 제 월급은 안 깎여요… 아마도…')] },
+    ],
+  },
+  {
+    id: 'phone_orderer', name: '통화하며 주문', icon: '📱', type: 'customer', rare: true, jinsang: true,
+    angerMin: 8, angerMax: 16, probability: 2.5,
+    scenarios: [
+      { id: 'ph_talk', lines: [['c', '(통화 중) 응응, 아니 그니까~ …네? 아 잠깐만.'], ['s', '포인트 적립하시겠어요?'], ['c', '(쳐다보지도 않고) 응 그래서 걔가 뭐래?']],
+        choices: [
+          { text: '(메모지에 “적립하시겠어요?”라고 써서 보여준다)', style: 'std', fx: { anger: 4, kind: 4, rep: 0.1 }, result: '손님이 메모를 보고 고개를 끄덕였다. 필담 서비스 개시.' },
+          { text: '(통화가 끝날 때까지 기다린다)', style: 'dodge', fx: { anger: 6, stamina: -2 }, result: '통화는 7분 뒤에 끝났다. 뒷줄은 7명이 됐다.' },
+          { text: '(수화기에 대고) “여보세요? 결제 도와드릴게요~”', style: 'humor', fx: { anger: -8, rep: -0.3 }, result: '통화 상대가 웃음을 터뜨렸다. 손님은 얼굴이 빨개졌다.' },
+          innerChoice('저도 누구랑 통화하고 싶네요. 퇴근길에.')] },
+    ],
+  },
+  {
+    id: 'last_minute', name: '마지막 1분 손님', icon: '⏰', type: 'customer', rare: true, special: 'lastMinute', fixedAnger: true,
+    angerMin: 30, angerMax: 30, probability: 0, arrivalFx: { overtime: 15 },
+    scenarios: [
+      { id: 'lm_enter', lines: [['n', '🔔 딸랑~ 퇴근 1분 전, 문이 열렸다. (퇴근 +15분)'], ['c', '아직 영업하죠? 금방 골라요~ 천천히 볼게요.']],
+        choices: [
+          { text: '“네… 천천히 보세요…”', style: 'std', fx: { anger: 3, kind: 5, rep: 0.3 }, result: '손님은 정말로 천천히 봤다. 정확히 15분.' },
+          { text: '“곧 마감이라 빠르게 도와드릴게요!”', style: 'dodge', fx: { anger: 1, rep: 0.1 }, result: '빠르게 도와드렸지만 손님은 빠르지 않았다.' },
+          { text: '“제 퇴근도 같이 골라주시면 감사하겠습니다.”', style: 'humor', fx: { anger: -6, rep: -0.1 }, result: '손님이 “아 미안해요~” 하면서도 속도는 그대로였다.' },
+          innerChoice('천천히…라고 하셨습니까…?')] },
+    ],
+  },
+];
+
+/* ---------------------------------------------------------------------
+   직업 데이터 — scenarios: 해당 직업에서만 나오는 상황 (customer: 등장 손님 id)
+   weights: 손님별 등장 가중치 보정 · strictScenarios: 전용 상황만 사용(콜센터)
+--------------------------------------------------------------------- */
+const JOB_TYPES = [
+  {
+    id: 'conv', name: '편의점', icon: '🏪', boss: '점장님', jobRate: 0.45,
+    products: [['삼각김밥', 1500], ['바나나우유', 1800], ['컵라면', 1600], ['생수', 1000], ['도시락', 5500], ['봉투', 500]],
+    branches: ['역전점', '대학로점', '사거리점'], weights: { drunk: 1.4 },
+    scenarios: [
+      { id: 'conv_cig', customer: 'banmal', lines: [['c', '담배. 그거 줘. 아 그거, 하얀 거, 얇은 거.'], ['n', '뒤 벽면에 하얀 담배만 스무 종류다.']],
+        choices: [
+          { text: '“혹시 번호로 말씀해주시겠어요?”', style: 'std', fx: { anger: 4, rep: 0.2, kind: 3 }, result: '손님이 “번호를 내가 어떻게 알아” 하더니 결국 손가락으로 가리켰다.' },
+          { text: '(하나씩 집어서 보여준다)', style: 'std', fx: { anger: 6, stamina: -3, kind: 5 }, result: '일곱 번째에 “그거!” 소리가 나왔다. 손목 운동 완료.' },
+          { text: '“하얗고 얇은 거면 우유 빨대도 있어요.”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '손님이 어이없어 웃더니 정확한 이름을 말했다. 알고 있었잖아요!' },
+          innerChoice('담배 이름 퀴즈는 시급에 포함 안 돼요…')] },
+      { id: 'conv_parcel', customer: 'hurry', lines: [['c', '택배 좀요. 오늘 꼭 가야 돼요. 포장은 여기서 해주세요.'], ['n', '상자도, 테이프도, 주소도 없다. 물건만 있다.']],
+        choices: [
+          { text: '“포장재 판매용 드릴게요. 주소 먼저 적어주세요.”', style: 'std', fx: { anger: 5, rep: 0.2, stamina: -3 }, result: '주소를 적는 데 10분, 포장에 5분. 오늘 택배 마감에 간신히 맞췄다.' },
+          { text: '“오늘 수거가 이미 끝났어요.”', style: 'dodge', fx: { anger: 2, rep: -0.1 }, result: '손님이 “그럼 내일 1등으로 보내줘요”라고 했다. 내일의 나에게 미안.' },
+          { text: '“포장은 셀프, 사랑은 무료입니다.”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '손님이 테이프를 받아 직접 포장했다. 꽤 잘한다.' },
+          innerChoice('택배 기사님, 오늘도 저를 버리지 마세요…')] },
+      { id: 'conv_tcard', customer: 'normal', lines: [['c', '교통카드 충전이요. 만 원이요. …아 잠깐, 카드가 어디 있더라.'], ['n', '손님이 가방을 통째로 계산대 위에 쏟았다.']],
+        choices: [
+          { text: '“천천히 찾으세요~”', style: 'std', fx: { anger: 2, kind: 4, rep: 0.1 }, result: '카드는 휴대폰 케이스 뒤에 있었다. 늘 거기 있다.' },
+          { text: '“휴대폰 뒤에 끼워두신 거 아니에요?”', style: 'humor', fx: { anger: -4, kind: 3 }, result: '정답. 손님이 “천재세요?” 하고 감탄했다.' },
+          innerChoice('모든 교통카드는 결국 휴대폰 뒤에 있다.', { fx: { anger: -2 } })] },
+      { id: 'conv_ramen', customer: 'drunk', loop: [2, 3], lines: [['c', '여기서 라면 먹어도 되지~? 뜨거운 물 어딨어~'], ['n', '손님이 이미 컵라면 뚜껑을 반대로 뜯었다.']],
+        loopLines: ['뜨거운 물~ 뜨거운 물 어딨냐니까~', '(정수기 앞에서) 이거 찬물이잖아~'],
+        choices: [
+          { text: '“저기 온수기 있습니다~”', style: 'std', loop: true, fx: { anger: 5, kind: 3 }, result: '손님이 라면을 다 먹고 국물까지 마셨다. 쓰레기는 두고 갔다.' },
+          { text: '(직접 물을 부어드린다)', style: 'dodge', fx: { anger: 3, kind: 6, stamina: -2 }, result: '손님이 “너 좋은 사람이다~”라며 감동했다. 그리고 국물을 쏟았다.' },
+          { text: '“라면은 집에서 드시는 게 제일 맛있어요.”', style: 'humor', fx: { anger: -6, rep: -0.1 }, result: '손님이 “맞아~ 우리 엄마 라면~” 하며 라면을 들고 나갔다.' },
+          innerChoice('뚜껑이 거꾸로… 인생도 거꾸로…')] },
+    ],
+  },
+  {
+    id: 'cafe', name: '카페', icon: '☕', boss: '사장님', jobRate: 0.5,
+    products: [['아메리카노', 4500], ['카페라떼', 5000], ['바닐라라떼', 5500], ['샷 추가', 500], ['크로플', 4800], ['스콘', 3800]],
+    branches: ['2호점', '역 앞 지점', '본점'], weights: { kiosk: 1.2 },
+    scenarios: [
+      { id: 'cafe_change', customer: 'jinsang', lines: [['c', '아까 아이스로 시켰는데 따뜻한 걸로 바꿔주세요.'], ['n', '음료는 이미 반쯤 마셔져 있다.']],
+        choices: [
+          { text: '“죄송하지만 드신 음료는 변경이 어렵습니다.”', style: 'std', fx: { anger: 5, rep: 0.2 }, result: '손님이 “그럼 전자레인지라도 돌려줘요”라고 했다. 정중히 거절했다.' },
+          { text: '“반값에 새로 만들어드릴게요.”', style: 'dodge', fx: { anger: 1, rep: 0.2, mental: -3 }, result: '손님은 만족했다. {boss}께는 비밀이다.' },
+          { text: '“얼음이 녹으면 따뜻해질 거예요.”', style: 'humor', fx: { anger: -7, rep: -0.3 }, result: '손님이 멍하니 컵을 바라보다 그냥 나갔다.' },
+          innerChoice('반을 드시고 바꾸시는 건 반칙이에요…')] },
+      { id: 'cafe_shot', customer: 'discount', lines: [['c', '샷 추가 그냥 해줘요. 연하잖아요.'], ['s', '샷 추가는 500원입니다.'], ['c', '500원 가지고 뭘 그래요?']],
+        choices: ['policy_sorry',
+          { text: '“500원 가지고 뭘 그러세요? 결제해주세요^^”', style: 'risk', fx: { anger: -9, rep: -0.4 }, result: '손님이 할 말을 잃고 500원을 냈다. 명언이 되돌아갔다.' },
+          { text: '“얼음을 조금 빼서 진하게 해드릴게요.”', style: 'dodge', fx: { anger: 2, kind: 4, rep: 0.2 }, result: '손님이 한 모금 마시고 “이제 좀 낫네”라고 했다. 똑같은 커피다.' },
+          innerChoice('500원이 별거 아니면 내시면 되잖아요…')] },
+      { id: 'cafe_remake', customer: 'jinsang', lines: [['c', '이거 맛이 이상해요. 다시 만들어 주세요.'], ['n', '컵은 비어 있다. 얼음만 남았다.']],
+        choices: [
+          { text: '“어떤 점이 이상하셨는지 여쭤봐도 될까요?”', style: 'std', fx: { anger: 5, rep: 0.3, kind: 3 }, result: '“그냥 이상해요.” 30초간 침묵 후 새로 만들어 드렸다.' },
+          { text: '“다 드신 걸 보니 맛이 적응되신 것 같아요.”', style: 'humor', fx: { anger: -8, rep: -0.3 }, result: '손님이 컵을 내려다보고 조용히 나갔다.' },
+          { text: '(말없이 새로 만든다)', style: 'dodge', fx: { anger: 4, stamina: -3, rep: 0.1 }, result: '새 음료를 받은 손님이 한 모금 마시고 “이 맛이죠”라고 했다. 같은 레시피다.' },
+          innerChoice('얼음까지 드시지 그러셨어요…')] },
+      { id: 'cafe_straw', customer: 'rulebreaker', lines: [['c', '빨대 열 개만 주세요. 얼음은 반만, 아니 3분의 1만. 컵은 큰 걸로, 가격은 작은 걸로.']],
+        choices: [
+          { text: '“빨대는 필요한 만큼만 드리고 있어요.”', style: 'std', fx: { anger: 4, rep: 0.2 }, result: '빨대 두 개로 합의했다. 외교관이 된 기분이다.' },
+          { text: '“가격도 3분의 1이면 좋겠네요~”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '손님이 “그쵸?” 하며 맞장구쳤다. 결제는 정가로 했다.' },
+          { text: '(말없이 전부 해준다)', style: 'dodge', fx: { anger: 5, mental: -3, kind: 3 }, result: '빨대 열 개가 사라졌다. 환경에게 사과했다.' },
+          innerChoice('얼음 3분의 1은 몇 알인가요…')] },
+    ],
+  },
+  {
+    id: 'rest', name: '음식점', icon: '🍲', boss: '사장님', jobRate: 0.45,
+    products: [['김치찌개', 9000], ['제육볶음', 10000], ['공깃밥', 1000], ['계란말이', 7000], ['소주', 5000]],
+    branches: ['옆 동네 가게', '본점', '2호점'], weights: { drunk: 1.3 },
+    scenarios: [
+      { id: 'rest_hair', customer: 'jinsang', lines: [['c', '여기 음식에서 머리카락 나왔어요!'], ['n', '머리카락 색과 길이가 손님 것과 똑같다.']],
+        choices: [
+          { text: '“정말 죄송합니다. 새로 해드리겠습니다.”', style: 'std', fx: { anger: 5, rep: 0.4, stamina: -3 }, result: '새로 조리해 드렸다. 손님은 음료수까지 서비스로 받아 갔다.' },
+          { text: '“저희 주방은 모두 짧은 머리라서요…”', style: 'risk', fx: {},
+            outcomes: [
+              { p: 0.6, fx: { anger: -8, rep: -0.2 }, result: '손님이 자기 머리를 만지더니 “…그냥 먹을게요”라고 했다.' },
+              { p: 0.4, fx: { anger: 6, rep: -0.6 }, result: '“지금 내 탓이라는 거예요?!” 불이 붙었다.' }] },
+          { text: '“{boss}께 말씀드려 조치하겠습니다.”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '{boss}이 나와 사과했다. 머리카락의 주인은 영원한 미스터리.' },
+          innerChoice('그 머리카락, 고객님 머리랑 쌍둥이인데요…')] },
+      { id: 'rest_refill', customer: 'discount', lines: [['c', '반찬 리필 한 번 더요. 무한 아니에요?'], ['n', '다섯 번째 리필이다. 계란말이만.']],
+        choices: [
+          { text: '“계란말이는 리필이 어려워요. 다른 반찬은 드릴게요.”', style: 'std', fx: { anger: 4, rep: 0.2 }, result: '손님이 김치를 세 번 더 리필했다. 김치는 무한이다.' },
+          { text: '“계란말이는 무한이 아니라 무한 사랑입니다.”', style: 'humor', fx: { anger: -6, rep: -0.1 }, result: '손님이 웃으며 계란말이 한 접시를 주문했다. 매출 상승!' },
+          { text: '(조용히 한 번 더 드린다)', style: 'dodge', fx: { anger: 3, mental: -3, kind: 4 }, result: '주방에서 한숨 소리가 들렸다.' },
+          innerChoice('계란도 요즘 비싸요…')] },
+      { id: 'rest_wait', customer: 'hurry', lines: [['c', '주문한 지 30분 됐는데 음식 언제 나와요?'], ['n', '주문 시각은 7분 전이다.']],
+        choices: [
+          { text: '“확인해보니 곧 나옵니다. 조금만 기다려주세요.”', style: 'std', fx: { anger: 4, rep: 0.2 }, result: '2분 뒤 음식이 나왔다. 손님은 “거봐, 30분”이라고 했다.' },
+          { text: '“주문서엔 7분 전으로 찍혀 있어요.”', style: 'risk', fx: { anger: -7, rep: -0.3 }, result: '손님이 시계를 보고 조용히 물을 마셨다.' },
+          { text: '“서비스로 음료수 하나 드릴게요.”', style: 'dodge', fx: { anger: 1, rep: 0.3, mental: -2 }, result: '음료수가 30분을 7분으로 바꿔주었다.' },
+          innerChoice('7분이 30분이면 제 근무는 몇 년인가요…')] },
+    ],
+  },
+  {
+    id: 'gas', name: '주유소', icon: '⛽', boss: '소장님', jobRate: 0.5,
+    products: [['휘발유', 1680], ['경유', 1540], ['세차', 7000], ['워셔액', 3000], ['생수', 800]],
+    branches: ['건너편 주유소', '고속도로 휴게소', '셀프 주유소'], weights: { kiosk: 0.8, child: 0.3 },
+    scenarios: [
+      { id: 'gas_fuel', customer: 'normal', lines: [['c', '경유 가득이요. …아 잠깐, 제 차 휘발유였나?'], ['n', '주유건은 이미 손에 들려 있다. 심장이 쿵 내려앉는다.']],
+        choices: [
+          { text: '“차량 주유구 스티커 먼저 확인할게요.”', style: 'std', fx: { anger: 2, rep: 0.4, mental: 2 }, result: '휘발유 차였다. 대형 사고를 막았다. 오늘의 MVP.' },
+          { text: '“제가 한번 여쭤볼게요. 확실하세요?”', style: 'dodge', fx: { anger: 3, rep: 0.2 }, result: '손님이 차량 등록증을 5분간 찾았다. 결국 휘발유.' },
+          innerChoice('제 차도 아닌데 제가 더 떨려요…', { fx: { anger: -1, mental: -2 } })] },
+      { id: 'gas_amount', customer: 'calc', receipt: true, lines: [['c', '5만 원이라고 했잖아요? 왜 가득 넣었어요?'], ['n', '분명 “가득이요”라고 들었다. 녹음은 없다.']],
+        choices: [
+          { text: '“주유기 기록을 같이 확인해볼게요.”', style: 'std', fx: {},
+            outcomes: [
+              { p: 0.65, fx: { anger: 4, rep: 0.2 }, result: '주문 입력 기록에 “가득”이 남아 있었다. 손님이 조용히 카드를 내밀었다.' },
+              { p: 0.35, fx: { anger: 8, rep: -0.2, mental: -4 }, result: '기록이 애매했다. 차액만큼 {boss}께 혼날 예정이다.' }] },
+          { text: '“5만 원만 결제해드릴게요.”', style: 'dodge', fx: { anger: 2, mental: -4, rep: 0.1 }, result: '차액은 당신의 사회생활 수업료가 되었다.' },
+          { text: '“기름은 되돌릴 수가 없어서요…”', style: 'humor', fx: { anger: -5, rep: -0.2 }, result: '손님이 “그건 그렇지” 하고 수긍했다. 의외로 논리가 통했다.' },
+          innerChoice('녹음기… 녹음기가 필요하다…')] },
+      { id: 'gas_self', customer: 'kiosk', lines: [['c', '셀프 주유 이거 어떻게 해요? 카드 넣었는데 기름이 안 나와요.'], ['n', '주유건이 아직 거치대에 걸려 있다.']],
+        choices: [
+          { text: '“유종 선택하시고 주유건을 들어주세요!”', style: 'std', fx: { anger: 3, kind: 5, rep: 0.2 }, result: '기름이 나오자 손님이 “오~” 하고 감탄했다.' },
+          { text: '(직접 가서 주유해드린다)', style: 'dodge', fx: { anger: 2, kind: 7, stamina: -4 }, result: '셀프 주유소의 풀서비스. 손님이 음료수를 사 갔다.' },
+          { text: '“기름도 주유건을 들어야 나오고 싶어해요.”', style: 'humor', fx: { anger: -4, kind: 2 }, result: '손님이 주유건을 들며 “이렇게?” 하고 웃었다.' },
+          innerChoice('셀프의 뜻을 다시 생각해본다…')] },
+      { id: 'gas_receipt', customer: 'jinsang', lines: [['c', '영수증 다시 뽑아줘요. 회사 제출용이니까 금액 좀 크게 해서요.'], ['n', '⚠ 영수증 금액을 부풀려 달라는 요청. 명백한 규정 위반이다.']],
+        choices: [
+          { text: '“실제 결제 금액으로만 발행 가능합니다.”', style: 'std', fx: { anger: 5, rep: 0.3 }, result: '손님이 “융통성이 없네” 하며 원래 영수증을 받아 갔다. 양심은 지켜졌다.' },
+          { text: '“재발행은 가능해요. 금액은 그대로요.”', style: 'dodge', fx: { anger: 3, rep: 0.2 }, result: '똑같은 영수증이 두 장 생겼다. 손님은 둘 다 챙겨 갔다.' },
+          { text: '“금액을 크게… 글씨 크기를 키워드릴까요?”', style: 'humor', fx: { anger: -7, rep: -0.1 }, result: '손님이 어이없어 웃고는 포기했다.' },
+          innerChoice('그건 영수증이 아니라 증거물이 됩니다…')] },
+      { id: 'gas_wash', customer: 'tmi', lines: [['c', '세차는 얼마예요? 광택은요? 실내는요? 아 우리 차가 원래 말이야, 10년 전에…']],
+        choices: [
+          { text: '(가격표를 안내하고 끝까지 들어드린다)', style: 'std', fx: { anger: 4, kind: 6, rep: 0.2, overtime: 4 }, result: '차의 연대기를 전부 들었다. 퇴근 4분 지연.' },
+          { text: '“세차 기다리시는 동안 들을게요!”', style: 'humor', fx: { anger: -4, kind: 3, rep: 0.1 }, result: '손님이 세차를 결제했다. 이야기는 세차 기계가 들어주었다.' },
+          { text: '“가격표는 저기 있습니다~”', style: 'dodge', fx: { anger: 1, kind: -1 }, result: '손님이 가격표 앞에서 혼잣말로 이야기를 이어갔다.' },
+          innerChoice('그 차보다 제가 더 광택이 필요해요…')] },
+    ],
+  },
+  {
+    id: 'pc', name: 'PC방', icon: '🖥️', boss: '사장님', jobRate: 0.5,
+    products: [['라면', 4000], ['핫바', 2500], ['콜라', 2000], ['1시간 이용권', 1500], ['볶음밥', 6000]],
+    branches: ['옆 건물 PC방', '대학가 PC방', '프랜차이즈 PC방'], weights: { child: 1.6, drunk: 0.7, kiosk: 0.8 },
+    scenarios: [
+      { id: 'pc_lag', customer: 'jinsang', lines: [['c', '컴퓨터 렉 걸려서 게임 졌잖아요! 시간 돌려줘요!'], ['n', '다른 자리들은 전부 멀쩡하다.']],
+        choices: [
+          { text: '“자리 옮겨드리고 30분 추가해드릴게요.”', style: 'std', fx: { anger: 4, rep: 0.3, mental: -2 }, result: '새 자리에서 손님이 또 졌다. 이번엔 렉 탓을 못 했다.' },
+          { text: '“렉 말고 실력… 아닙니다.”', style: 'risk', fx: { anger: -9, rep: -0.5 }, result: '손님의 동료가 웃음을 터뜨렸다. 손님은 헤드셋을 쓰고 침묵했다.' },
+          { text: '“원격으로 점검해볼게요.”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '점검 결과 이상 없음. 손님은 “이상하네”만 반복했다.' },
+          innerChoice('인터넷 탓, 컴퓨터 탓, 팀원 탓… 다음은 제 탓이겠죠.')] },
+      { id: 'pc_food', customer: 'hurry', lines: [['c', '(자리에서 소리침) 라면 아직이에요?! 한타 시작한단 말이에요!']],
+        choices: [
+          { text: '“1분 안에 가져다 드릴게요!”', style: 'std', fx: { anger: 5, stamina: -4, rep: 0.2 }, result: '라면을 들고 전력질주했다. 한타는 이겼다고 한다.' },
+          { text: '“한타 끝나면 드시는 게 안전해요.”', style: 'humor', fx: { anger: -5, rep: 0.1 }, result: '손님이 “맞네” 하며 한타에 집중했다. 라면은 불었다.' },
+          { text: '“조리 순서대로 나가고 있어요.”', style: 'dodge', fx: { anger: 3, rep: 0 }, result: '손님이 키보드를 두드리며 대기했다. 키보드가 불쌍하다.' },
+          innerChoice('저도 인생 한타 중이에요…')] },
+      { id: 'pc_kid', customer: 'child', lines: [['c', '저 10분만 더 하면 안 돼요? 엄마한테는 비밀로…'], ['n', '시계는 밤 9시 55분. 청소년 이용 제한 시간이 다가온다.']],
+        choices: [
+          { text: '“10시부터는 규정상 안 돼. 내일 또 와!”', style: 'std', fx: { anger: 2, rep: 0.3, kind: 4 }, result: '아이가 “네에…” 하고 순순히 로그아웃했다. 착하다.' },
+          { text: '“엄마한테 비밀은 나도 못 지켜.”', style: 'humor', fx: { anger: -3, kind: 3 }, result: '아이가 “헉” 하더니 번개처럼 집에 갔다.' },
+          innerChoice('나도 10분만 더 쉬고 싶다…', { fx: { anger: -2 } })] },
+    ],
+  },
+  {
+    id: 'ff', name: '패스트푸드', icon: '🍔', boss: '매니저님', jobRate: 0.45,
+    products: [['불고기버거', 4800], ['감자튀김', 2300], ['콜라', 2000], ['치즈스틱', 2800], ['세트 업그레이드', 1500]],
+    branches: ['역 앞 매장', '드라이브스루점', '몰 안 매장'], weights: { kiosk: 1.5, child: 1.2 },
+    scenarios: [
+      { id: 'ff_sauce', customer: 'discount', lines: [['c', '케첩 열 개만 주세요. 소스 추가도 공짜죠?'], ['s', '소스 추가는 300원입니다.'], ['c', '다른 데는 공짜던데?']],
+        choices: ['policy_sorry',
+          { text: '“케첩은 세 개까지 드릴게요.”', style: 'dodge', fx: { anger: 2, rep: 0.1, kind: 2 }, result: '세 개로 합의. 손님은 감자튀김을 케첩에 찍는 게 아니라 담갔다.' },
+          { text: '“케첩으로 목욕하셔도 될 양이네요.”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '손님이 웃으며 다섯 개로 타협했다.' },
+          innerChoice('케첩도 원가가 있답니다…')] },
+      { id: 'ff_swap', customer: 'calc', receipt: true, lines: [['c', '감자튀김 대신 치즈스틱으로 바꿔주세요. 차액은 안 낼 거예요.']],
+        choices: [
+          { text: '“변경 시 500원 차액이 발생합니다.”', style: 'std', fx: { anger: 4, rep: 0.2 }, result: '손님이 500원을 동전으로 한 개씩 냈다. 10원짜리 50개.' },
+          { text: '“이번 한 번만 해드릴게요.”', style: 'dodge', fx: { anger: 1, rep: 0.1, mental: -3 }, result: '다음에도 “저번에 해줬잖아요”가 예약되었다.' },
+          { text: '“치즈스틱은 감자튀김의 형님이라서요.”', style: 'humor', fx: { anger: -5, rep: -0.1 }, result: '손님이 “형님이면 비싸겠네” 하며 차액을 냈다.' },
+          innerChoice('차액은 제 월급에서 나가나요…')] },
+      { id: 'ff_drive', customer: 'hurry', lines: [['n', '🚗 드라이브스루 스피커가 울린다.'], ['c', '뭐 있어요? 아 메뉴판 못 봤어요. 다 읽어줘요. 빨리요.'], ['n', '뒤에 차가 다섯 대 밀려 있다.']],
+        choices: [
+          { text: '“인기 메뉴 세 가지 추천드릴게요!”', style: 'std', fx: { anger: 4, rep: 0.3, kind: 3 }, result: '두 번째 추천에서 주문이 끝났다. 영업 천재 탄생.' },
+          { text: '“메뉴판이 차 왼쪽에 있습니다~”', style: 'dodge', fx: { anger: 2, rep: 0 }, result: '손님이 메뉴판을 3분간 읽었다. 뒤차들이 클랙슨을 울렸다.' },
+          { text: '(메뉴 42개를 전부 읽는다)', style: 'risk', fx: { anger: 8, stamina: -5, overtime: 2, rep: 0.1 }, result: '42개를 다 읽었더니 손님이 “그냥 1번 주세요”라고 했다.' },
+          innerChoice('메뉴판은 차 왼쪽에 10년째 있어요…')] },
+    ],
+  },
+  {
+    id: 'mart', name: '마트', icon: '🛒', boss: '점장님', jobRate: 0.45,
+    products: [['두부', 1800], ['삼겹살', 16900], ['계란 30구', 7900], ['우유', 2900], ['라면 5입', 4500], ['시식 만두', 0]],
+    branches: ['옆 동네 마트', '대형 마트', '온라인몰'], weights: { child: 1.3 },
+    scenarios: [
+      { id: 'mart_sample', customer: 'rulebreaker', lines: [['c', '시식 하나만 더 줘요. 아니 세 개만. 아니 그냥 한 접시.'], ['n', '손님은 이미 시식 코너를 다섯 바퀴 돌았다.']],
+        choices: [
+          { text: '“시식은 한 분당 하나씩이에요.”', style: 'std', fx: { anger: 4, rep: 0.2 }, result: '손님이 여섯 번째 바퀴를 시작했다. 모자를 바꿔 쓰고.' },
+          { text: '“이 정도면 한 봉지 사시는 게 이득이에요!”', style: 'humor', fx: { anger: -5, rep: 0.2 }, result: '손님이 정말로 한 봉지를 샀다. 판매왕 등극.' },
+          { text: '(못 본 척 하나 더 준다)', style: 'dodge', fx: { anger: 2, mental: -2 }, result: '손님이 친구를 데려왔다.' },
+          innerChoice('이제 그만… 만두가 불쌍해요…')] },
+      { id: 'mart_expire', customer: 'discount', lines: [['c', '이거 유통기한 내일인데 반값 안 해줘요?'], ['n', '할인 스티커 붙이는 시간은 저녁 8시다.']],
+        choices: [
+          { text: '“할인은 저녁 8시부터 적용됩니다.”', style: 'std', fx: { anger: 4, rep: 0.2 }, result: '손님이 “그럼 그때 올게요” 하며 상품을 뒤쪽에 숨겼다.' },
+          { text: '“내일까지 드시면 정가의 가치를 하실 거예요.”', style: 'humor', fx: { anger: -5, rep: -0.1 }, result: '손님이 고개를 갸웃하더니 정가에 샀다.' },
+          { text: '“제가 스티커 붙여드릴게요.”', style: 'dodge', fx: { anger: 0, rep: 0.1, mental: -4 }, result: '손님은 기뻐했고 {boss}의 눈빛이 따가웠다.' },
+          innerChoice('제 유통기한도 오늘까지인 것 같아요…')] },
+      { id: 'mart_express', customer: 'hurry', lines: [['c', '여기 소량 계산대 맞죠? 저 금방 해요.'], ['n', '카트에 상품이 50개 넘게 담겨 있다. 안내판: “10개 이하”.']],
+        choices: [
+          { text: '“죄송하지만 옆 계산대를 이용해주세요.”', style: 'std', fx: { anger: 5, rep: 0.2 }, result: '뒷줄 손님들이 조용히 박수를 쳤다.' },
+          { text: '“10개씩 다섯 번 계산해드릴까요?”', style: 'humor', fx: { anger: -6, rep: -0.1 }, result: '손님이 웃음을 터뜨리고 옆 계산대로 갔다.' },
+          { text: '(그냥 계산한다)', style: 'dodge', fx: { anger: 7, stamina: -5, rep: -0.2 }, result: '뒷줄의 원성이 모두 당신에게 쏟아졌다.' },
+          innerChoice('소량의 정의를 다시 배워야겠다…')] },
+    ],
+  },
+  {
+    id: 'call', name: '콜센터', icon: '🎧', boss: '센터장님', jobRate: 1, strictScenarios: true,
+    products: [['기본요금', 33000], ['부가서비스', 3300], ['위약금', 120000], ['데이터 추가', 5500]],
+    branches: ['다른 통신사', '예전 상담원', '대리점'], weights: {},
+    scenarios: [
+      { id: 'call_manager', customer: 'jinsang', lines: [['c', '상담원 말고 관리자 바꿔요. 당신 말고 윗사람!'], ['s', '제가 먼저 도와드릴 수 있는 부분을 확인하겠습니다.'], ['c', '관리자 바꾸라고요!!']],
+        choices: [
+          { text: '“확인 후 담당 부서에서 연락드리겠습니다.”', style: 'std', fx: { anger: 5, rep: 0.2, mental: -3 }, result: '고객이 “꼭 연락해요!” 하고 끊었다. 콜백 목록이 하나 늘었다.' },
+          { text: '“관리자님께 연결해드리겠습니다.”', style: 'dodge', fx: { anger: 2, rep: 0.05 }, result: '관리자님도 똑같은 말을 했고, 고객은 다시 당신을 찾았다.' },
+          { text: '“저도 관리자님 찾고 싶습니다.”', style: 'humor', fx: { anger: -10, rep: -0.5 }, result: '수화기 너머로 3초간 정적이 흘렀다.' },
+          innerChoice('윗사람은 지금 회의 중입니다. 영원히.')] },
+      { id: 'call_repeat', customer: 'jinsang', lines: [['c', '아까 다른 상담원은 된다고 했는데요? 처음부터 다시 설명할게요.'], ['n', '📞 같은 설명 반복 이벤트 — 통화 시간 23분째']],
+        choices: [
+          { text: '“상담 이력 확인해보겠습니다.”', style: 'std', fx: {},
+            outcomes: [
+              { p: 0.7, fx: { anger: 5, rep: 0.3 }, result: '이력에는 “불가 안내함”이라고 적혀 있었다. 고객은 기억이 안 난다고 했다.' },
+              { p: 0.3, fx: { anger: 9, mental: -5 }, result: '이전 상담원이 정말 된다고 했다. 수습은 당신 몫이다.' }] },
+          { text: '“처음부터 천천히 말씀해주세요.”', style: 'dodge', fx: { anger: 6, kind: 5, stamina: -3 }, result: '고객이 정말로 처음부터, 태어날 때부터 설명했다.' },
+          { text: '“이전 상담원이 저보다 친절했나 봐요.”', style: 'humor', fx: { anger: -6, rep: -0.2 }, result: '고객이 “아니 그건 아니고…” 하며 누그러졌다.' },
+          innerChoice('그 상담원 이름 알려주세요. 같이 반성하게…')] },
+      { id: 'call_swear', customer: 'banmal', lines: [['c', '야! 너 이름 뭐야? 너 같은 게 무슨 상담을 해!'], ['n', '⚠ 폭언 고객. 통화는 녹음 중이다.']],
+        choices: [
+          { text: '“폭언 시 상담이 종료될 수 있음을 안내드립니다.”', style: 'std', fx: { anger: 4, rep: 0.2, mental: -4 }, result: '고객이 목소리를 낮췄다. 규정 멘트는 강하다.' },
+          { text: '(보류 버튼을 누르고 물 한 모금)', style: 'dodge', fx: { anger: -4, rep: -0.1 }, result: '30초의 평화. 보류 음악이 이렇게 아름다울 줄이야.' },
+          { text: '(안내 멘트 후 통화 종료)', style: 'risk', fx: { anger: -12, rep: -0.2, mental: 3 }, result: '회사 규정에 따른 정당한 종료. 심장은 떨리지만 당신은 소중하다.' },
+          innerChoice('저도 누군가의 소중한 자식입니다.')] },
+      { id: 'call_redial', customer: 'jinsang', lines: [['n', '📞 방금 통화를 마친 고객이 다시 전화했다.'], ['c', '아니 왜 끊어요? 내 말 안 끝났는데?']],
+        choices: [
+          { text: '“네, 이어서 도와드리겠습니다.”', style: 'std', fx: { anger: 5, rep: 0.2, stamina: -3 }, result: '안 끝난 말은 “고마워요”였다. 조금 허무하다.' },
+          { text: '“아까 먼저 끊으셨는데요…”', style: 'risk', fx: { anger: -7, rep: -0.3 }, result: '고객이 “그랬나?” 하더니 또 끊었다.' },
+          innerChoice('제 통화 목록에 고객님만 있어요…')] },
+      { id: 'call_hurry', customer: 'hurry', lines: [['c', '5분 안에 해결 안 되면 안 돼요. 빨리요. 지금 회의 들어가야 해요.']],
+        choices: [
+          { text: '“핵심만 빠르게 확인하겠습니다.”', style: 'std', fx: { anger: 5, rep: 0.3, stamina: -3 }, result: '4분 58초 만에 해결했다. 스포츠 중계였다면 명장면이다.' },
+          { text: '“회의 끝나고 콜백 드릴까요?”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '고객이 “그래요” 하고 끊었다. 콜백 목록 +1.' },
+          { text: '“회의 5분만 늦게 들어가시면 어떨까요?”', style: 'humor', fx: { anger: -5, rep: -0.2 }, result: '고객이 헛웃음을 치며 조금 느긋해졌다.' },
+          innerChoice('저는 9시간째 회의 중이에요…')] },
+      { id: 'call_tmi', customer: 'tmi', lines: [['c', '(통화 20분째) 그래서 우리 며느리가 말이야~ 요금제를 바꾸라는데…'], ['n', '요금제 이야기는 3분, 며느리 이야기는 17분이다.']],
+        choices: [
+          { text: '(끝까지 경청한다)', style: 'std', fx: { anger: 4, kind: 8, rep: 0.3, overtime: 5 }, result: '며느리와 화해하셨다고 한다. 퇴근이 5분 밀렸다.' },
+          { text: '“요금제만 먼저 바꿔드릴게요!”', style: 'dodge', fx: { anger: 1, rep: 0.1 }, result: '요금제는 바뀌었고 이야기는 계속됐다. 결국 “좋은 하루 되세요”로 탈출.' },
+          { text: '“며느님께 안부 전해주세요~”', style: 'humor', fx: { anger: -4, kind: 3 }, result: '고객이 흐뭇해하며 통화를 마쳤다.' },
+          innerChoice('제 퇴근 이야기도 좀 들어주세요…')] },
+      { id: 'call_angel', customer: 'angel', lines: [['c', '상담원님 목소리가 너무 친절하시네요. 좋은 하루 보내세요!']],
+        choices: [
+          { text: '“감사합니다! 고객님도 좋은 하루 되세요!”', style: 'std', fx: { anger: -3, kind: 4, rep: 0.2, mental: 3 }, result: '헤드셋 너머로 햇살이 들어왔다.' },
+          { text: '“이 통화 녹음해서 매일 듣겠습니다!”', style: 'humor', fx: { anger: -5, kind: 2 }, result: '고객이 웃으며 “힘내세요”라고 했다.' },
+          innerChoice('오늘 들은 말 중에 제일 좋다…', { fx: { anger: -3, mental: 5 } })] },
+      { id: 'call_discount', customer: 'discount', lines: [['c', '10년 썼는데 혜택이 이게 다예요? 요금 좀 깎아줘요.']],
+        choices: [
+          { text: '“장기 고객 할인 요금제를 안내해드리겠습니다.”', style: 'std', fx: { anger: 4, rep: 0.3, kind: 3 }, result: '월 3,300원 할인을 받은 고객이 “진작 말하지”라고 했다.' },
+          { text: '“해지 방어팀으로 연결해드릴게요.”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '해지 방어팀이 당신보다 더 좋은 조건을 제시했다. 조금 서운하다.' },
+          { text: '“10년 근속이면 저보다 선배시네요.”', style: 'humor', fx: { anger: -5, rep: -0.1 }, result: '고객이 “그렇지?” 하며 기분 좋게 웃었다.' },
+          innerChoice('저는 10년 근속하면 뭐 주나요…')] },
+      { id: 'call_youtube', customer: 'internet_expert', lines: [['c', '유튜브에서 그러는데 이렇게 말하면 요금이 반값 된다던데요?']],
+        choices: [
+          { text: '“해당 내용은 사실과 다릅니다.”', style: 'std', fx: { anger: 5, rep: 0.2 }, result: '고객이 “구독자 100만인데?”라며 믿지 않았다.' },
+          { text: '“그 유튜버분께 요금 청구해볼까요?”', style: 'humor', fx: { anger: -7, rep: -0.1 }, result: '고객이 웃음을 터뜨리고 포기했다.' },
+          innerChoice('알고리즘이 저를 괴롭힌다…')] },
+      { id: 'call_complaint', customer: 'review_threat', lines: [['c', '민원 넣을 거예요. 지금 다 녹음하고 있어요.']],
+        choices: [
+          { text: '“네, 저희도 녹음 중입니다. 정확히 안내드리겠습니다.”', style: 'std', fx: { anger: 4, rep: 0.3 }, result: '양쪽 녹음기가 돌아가자 대화가 매우 정중해졌다.' },
+          { text: '“민원 접수 방법을 안내해드릴게요.”', style: 'risk', fx: { anger: -10 },
+            outcomes: [
+              { p: 0.5, fx: { rep: -0.7 }, result: '진짜로 민원이 접수됐다. 경위서 작성 예약.' },
+              { p: 0.5, fx: { rep: -0.1 }, result: '고객이 머쓱해하며 “아니 그렇게까지는…” 하고 끊었다.' }] },
+          innerChoice('제 멘탈도 녹음되고 있으면 좋겠어요…')] },
+      { id: 'call_bill', customer: 'calc', receipt: true, lines: [['c', '이번 달 요금이 왜 500원 더 나왔어요?'], ['n', '🧾 청구서 검토 이벤트 발생!']],
+        choices: [
+          { text: '“청구 내역을 항목별로 안내드리겠습니다.”', style: 'std', fx: {},
+            outcomes: [
+              { p: 0.7, fx: { anger: 4, rep: 0.3 }, result: '지난달 쓰신 부가서비스 일할 계산이었다. 고객이 “아~” 하고 수긍했다.' },
+              { p: 0.3, fx: { anger: 7, mental: -3, rep: 0.1 }, result: '전산 오류였다. 500원 환급 처리와 사과 멘트를 네 번 했다.' }] },
+          { text: '“다음 달 요금에서 500원 차감해드릴게요.”', style: 'dodge', fx: { anger: 0, rep: 0.1, mental: -3 }, result: '500원으로 20분 통화를 끝냈다. 가성비 최고.' },
+          innerChoice('500원… 제 시급으로는 1분 40초…')] },
+      { id: 'call_rule', customer: 'rulebreaker', lines: [['c', '{branch}에서는 된다고 하던데요? 거기로 옮길까요?'], ['n', '⚡ 특수 공격: 경쟁사 소환!']],
+        choices: ['policy_sorry',
+          { text: '“번호이동 전에 혜택부터 확인해드릴게요.”', style: 'std', fx: { anger: 4, rep: 0.3, kind: 2 }, result: '고객이 혜택을 듣고 잔류를 결정했다. 오늘의 방어 성공.' },
+          { text: '“옮기시면 저도 따라가도 될까요?”', style: 'humor', fx: { anger: -7, rep: -0.2 }, result: '고객이 “거기도 똑같을걸요” 하며 웃었다.' },
+          innerChoice('거기 상담원도 지금 똑같은 소리 듣고 있을 거예요…')] },
+      { id: 'call_drunk', customer: 'drunk', loop: [2, 3], lines: [['c', '(밤늦게) 여보세요~ 거기 상담원이지~? 나 요금이 너무 많이 나왔어~'], ['n', '고객의 목소리가 흥겹다. 노래방 반주 소리가 들린다.']],
+        loopLines: ['그니까아~ 내가 요금이 많이 나왔다고오~', '(노래를 한 소절 부른다)'],
+        choices: [
+          { text: '“네~ 청구 내역 확인해드릴게요.”', style: 'std', loop: true, fx: { anger: 5, rep: 0.1 }, result: '요금 문제는 노래방 소액결제였다. 고객은 “그렇구나~” 하고 끊었다.' },
+          { text: '“내일 맑은 정신에 다시 연락 주세요.”', style: 'dodge', fx: { anger: -3, rep: 0 }, result: '고객이 “너 착하다~” 하고 끊었다.' },
+          innerChoice('저도 노래방 가고 싶어요…')] },
+    ],
+  },
+];
+
+/* 콜센터용 마지막 1분 상황 (데이터 추가만으로 확장하는 예시) */
+CUSTOMERS.find(c => c.id === 'last_minute').scenarios.push({
+  id: 'lm_call', jobs: ['call'],
+  lines: [['n', '📞 퇴근 1분 전, 콜이 인입됐다. (퇴근 +15분)'], ['c', '아 다행이다, 아직 통화되네요? 제가 궁금한 게 좀 많은데요…']],
+  choices: [
+    { text: '“네, 천천히 말씀하세요…”', style: 'std', fx: { anger: 3, kind: 5, rep: 0.3 }, result: '궁금한 건 정확히 15분 분량이었다.' },
+    { text: '“핵심만 빠르게 도와드리겠습니다!”', style: 'dodge', fx: { anger: 1, rep: 0.1 }, result: '핵심이 일곱 개였다.' },
+    innerChoice('왜 항상 마지막 콜은 긴 걸까…')],
+});
+
+/* ---------------------------------------------------------------------
+   랜덤 사건(손님 외 이벤트) — jobs: 해당 직업만 · notJobs: 제외 직업
+   closingBoost: 마감 10분 전 가중치 증가 · closingOnly: 마감 10분 전에만 · toggle: 설정 키
+--------------------------------------------------------------------- */
+const EVENTS = [
+  { id: 'card_error', name: '카드 단말기 오류', icon: '💳', angerMin: 4, angerMax: 10, probability: 8, notJobs: ['call'],
+    lines: [['n', '카드 단말기에 “통신 오류”가 떴다. 손님 뒤로 줄이 늘어난다.']],
+    choices: [
+      { text: '재부팅하고 손님들께 양해를 구한다', style: 'std', fx: { anger: 5, rep: 0.1, stamina: -2 }, result: '2분 만에 복구. 줄 선 손님들의 한숨이 합창처럼 들렸다.' },
+      { text: '“계좌이체 부탁드려도 될까요?”', style: 'dodge', fx: { anger: 3, rep: -0.1 }, result: '계좌번호를 불러주다 목이 쉬었다.' },
+      { text: '단말기를 살짝 두드린다 (아날로그 수리)', style: 'humor', fx: {},
+        outcomes: [
+          { p: 0.5, fx: { anger: -5 }, result: '기적처럼 살아났다! 오늘의 운을 여기에 썼다.' },
+          { p: 0.5, fx: { anger: 8, rep: -0.1 }, result: '단말기가 완전히 꺼졌다. 줄은 더 길어졌다.' }] },
+      innerChoice('단말기야, 너도 퇴근하고 싶구나.')] },
+  { id: 'kiosk_down', name: '키오스크 오류', icon: '🖥️', angerMin: 4, angerMax: 10, probability: 6, notJobs: ['call', 'gas'],
+    lines: [['n', '키오스크 화면이 파랗게 변했다. 손님들이 전부 당신에게 몰려온다.']],
+    choices: [
+      { text: '“카운터에서 바로 주문 받겠습니다!”', style: 'std', fx: { anger: 6, stamina: -5, rep: 0.3 }, result: '1인 5역을 해냈다. 키오스크 없는 시절의 전설이 부활했다.' },
+      { text: '전원을 껐다 켠다', style: 'dodge', fx: { anger: 3 }, result: '부팅에 4분. 업데이트 설치 중… 12%.' },
+      { text: '“키오스크도 오늘 퇴근했나 봐요~”', style: 'humor', fx: { anger: -4, rep: 0.1 }, result: '손님들이 웃으며 줄을 섰다. 분위기가 한결 나아졌다.' },
+      innerChoice('기계도 쉬는데 나는…')] },
+  { id: 'net_down', name: '인터넷 끊김', icon: '📡', angerMin: 5, angerMax: 12, probability: 6,
+    lines: [['n', '인터넷이 끊겼다. POS도, 전산도, 와이파이도 모두 멈췄다.'], ['c', '(누군가) 와이파이 비번 뭐예요? 안 되는데요?']],
+    choices: [
+      { text: '공유기를 재부팅하고 수기로 처리한다', style: 'std', fx: { anger: 6, stamina: -4, rep: 0.2 }, result: '볼펜과 종이의 시대로 돌아갔다. 15분 뒤 복구.' },
+      { text: '{boss}께 전화해 상황을 보고한다', style: 'dodge', fx: { anger: 3, mental: -2 }, result: '{boss}: “껐다 켜봤어?” 네, 켜봤습니다.' },
+      { text: '“아날로그 체험 이벤트 중입니다!”', style: 'humor', fx: { anger: -4, rep: 0.1 }, result: '손님들이 신기해하며 기다려줬다.' },
+      innerChoice('나도 세상과 연결 끊고 싶다…')] },
+  { id: 'delivery_rush', name: '배달 주문 폭주', icon: '🛵', angerMin: 6, angerMax: 14, probability: 7, jobs: ['cafe', 'rest', 'ff', 'conv'], closingBoost: true,
+    lines: [['n', '띵동 띵동 띵동! 배달 앱 주문이 한꺼번에 12건 들어왔다.'], ['n', '매장 손님도 줄을 서 있다.']],
+    choices: [
+      { text: '매장 손님 먼저, 배달은 순서대로 처리한다', style: 'std', fx: { anger: 6, stamina: -6, rep: 0.2 }, result: '양손과 양발을 모두 썼다. 배달 기사님들이 줄을 섰다.' },
+      { text: '배달 앱 조리 시간을 30분으로 늘린다', style: 'dodge', fx: { anger: 2, rep: -0.1 }, result: '주문이 잠잠해졌다. 리뷰에 “느려요”가 하나 달렸다.' },
+      { text: '배달 앱을 잠시 영업 종료한다', style: 'risk', fx: { anger: -8, rep: -0.3 }, result: '평화가 찾아왔다. {boss}께서 매출 그래프를 보고 전화할 예정이다.' },
+      innerChoice('띵동 소리가 환청으로 들린다…')] },
+  { id: 'coworker_late', name: '동료 지각', icon: '🏃', angerMin: 5, angerMax: 12, probability: 6,
+    lines: [['n', '교대 동료에게서 문자가 왔다.'], ['n', '💬 “나 30분 늦을 듯ㅠㅠ 미안!! 버스가…”']],
+    choices: [
+      { text: '“괜찮아, 조심히 와~”', style: 'std', fx: { anger: 5, kind: 5, stamina: -3 }, result: '30분은 50분이 되었다. 동료는 커피를 사 왔다.' },
+      { text: '“다음엔 네가 30분 더 해줘ㅎㅎ”', style: 'humor', fx: { anger: -3, kind: 2 }, result: '“콜!” 답장이 왔다. 협상 성공.' },
+      { text: '{boss}께 바로 보고한다', style: 'risk', fx: { anger: -5, kind: -5 }, result: '정의는 실현되었으나 단톡방 분위기가 싸해졌다.' },
+      innerChoice('버스가… 라는 문자, 지난주에도 봤다.')] },
+  { id: 'toilet_clog', name: '화장실 막힘', icon: '🚽', angerMin: 6, angerMax: 14, probability: 5, notJobs: ['call', 'pc'],
+    lines: [['c', '(손님) 저기요, 화장실이 막혔는데요…'], ['n', '물이 넘치기 직전이라고 한다.']],
+    choices: [
+      { text: '뚫어뻥을 들고 출동한다', style: 'std', fx: { anger: 7, stamina: -6, rep: 0.3 }, result: '10분간의 사투 끝에 승리했다. 이 일은 기억에서 지우기로 한다.' },
+      { text: '“사용 금지” 안내문을 붙인다', style: 'dodge', fx: { anger: 2, rep: -0.2 }, result: '급한 손님들이 슬픈 눈으로 돌아갔다.' },
+      { text: '“막힌 건 화장실만이 아니죠…”', style: 'humor', fx: { anger: -3 }, result: '손님이 무슨 뜻인지 몰랐다. 당신만 알았다. 내 인생도 막혔다는 뜻이다.' },
+      innerChoice('이건 시급에 포함된 업무가 아니야…')] },
+  { id: 'boss_visit', name: '사장님 갑작스러운 방문', icon: '👔', angerMin: 5, angerMax: 12, probability: 6,
+    lines: [['n', '예고 없이 {boss}께서 들어오셨다.'], ['c', '({boss}) 요즘 좀 어때? 정리가 좀 덜 된 것 같은데?']],
+    choices: [
+      { text: '“바로 정리하겠습니다!”', style: 'std', fx: { anger: 5, stamina: -4, rep: 0.2 }, result: '{boss}께서 고개를 끄덕이고 가셨다. 30분 청소 추가.' },
+      { text: '“오늘 손님이 정말 많았어요…”', style: 'dodge', fx: { anger: 2, mental: -2 }, result: '{boss}: “그래? 매출은 별론데?” 대화 종료.' },
+      { text: '“{boss}님 오시니까 매장이 환해지네요!”', style: 'humor', fx: { anger: -3, rep: 0.1, mental: -2 }, result: '{boss}께서 기분 좋게 음료수를 사주고 가셨다. 아부의 힘.' },
+      innerChoice('왜 꼭 제일 바쁠 때 오시는 걸까…')] },
+  { id: 'group', name: '단체손님 등장', icon: '👥', angerMin: 8, angerMax: 16, probability: 6, toggle: 'group', notJobs: ['call'], closingBoost: true,
+    lines: [['n', '문이 열리고 단체손님 15명이 한꺼번에 들어왔다.'], ['c', '다 따로 계산이요! 아 근데 저는 반만 낼게요~']],
+    choices: [
+      { text: '“한 분씩 차례대로 도와드리겠습니다!”', style: 'std', fx: { anger: 7, stamina: -7, rep: 0.3 }, result: '15번의 계산, 3번의 더치페이 논쟁, 1번의 영수증 재발행. 완주했다.' },
+      { text: '“대표 한 분이 결제하시면 빨라요!”', style: 'dodge', fx: { anger: 3, rep: 0.1 }, result: '대표로 지목된 사람이 울상이 되었다. 계산은 1분 만에 끝났다.' },
+      { text: '“단체 할인은 없지만 단체 미소는 있습니다!”', style: 'humor', fx: { anger: -5, rep: 0.1 }, result: '단체 웃음이 터졌다. 계산도 수월해졌다.' },
+      innerChoice('15명… 15명…')] },
+  { id: 'phone_rush', name: '전화 주문 폭주', icon: '☎️', angerMin: 5, angerMax: 12, probability: 5, jobs: ['rest', 'ff', 'cafe', 'conv', 'pc'], closingBoost: true,
+    lines: [['n', '전화벨이 쉬지 않고 울린다. 받으면 또 울린다.'], ['c', '(전화) 거기 몇 시까지 해요? 배달 돼요? 주차는요?']],
+    choices: [
+      { text: '한 통 한 통 친절하게 받는다', style: 'std', fx: { anger: 6, stamina: -4, rep: 0.3 }, result: '열한 통째에 목소리가 로봇처럼 변했다.' },
+      { text: '자동응답으로 돌려둔다', style: 'dodge', fx: { anger: 1, rep: -0.2 }, result: '“영업시간은…” 기계가 대신 고생해줬다.' },
+      { text: '“네, 사람 사는 곳입니다~”', style: 'humor', fx: { anger: -4, rep: 0 }, result: '전화한 손님이 웃음을 터뜨렸다.' },
+      innerChoice('전화선을 뽑고 싶다…')] },
+  { id: 'soldout', name: '물건 품절', icon: '📦', angerMin: 4, angerMax: 10, probability: 6, notJobs: ['call'],
+    lines: [['n', '오늘의 인기 상품 {product}가 품절됐다.'], ['c', '(손님) {product} 없어요? 창고 한번만 봐주세요.']],
+    choices: [
+      { text: '창고를 한번 확인해본다', style: 'std', fx: {},
+        outcomes: [
+          { p: 0.3, fx: { anger: -4, rep: 0.3 }, result: '창고 구석에서 마지막 하나를 발견했다! 손님이 당신을 영웅으로 봤다.' },
+          { p: 0.7, fx: { anger: 5, stamina: -3 }, result: '창고에도 없었다. 손님은 “진짜 없어요?”를 세 번 물었다.' }] },
+      { text: '“내일 오전에 입고됩니다.”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '손님이 “내일 몇 시요?”라고 물었다. 모른다고 했다.' },
+      { text: '“{product}는 인기가 많아 조기 퇴근했습니다.”', style: 'humor', fx: { anger: -4, rep: 0 }, result: '손님이 “부럽네요”라고 했다. 저도요.' },
+      innerChoice('품절 안내문을 이마에 붙이고 싶다.')] },
+  { id: 'fridge', name: '냉장고 고장', icon: '🧊', angerMin: 6, angerMax: 14, probability: 4, jobs: ['conv', 'cafe', 'rest', 'mart', 'ff'],
+    lines: [['n', '냉장고에서 이상한 소리가 나더니 온도가 올라가기 시작했다. 12℃… 14℃…']],
+    choices: [
+      { text: '상품을 다른 냉장고로 옮긴다', style: 'std', fx: { anger: 6, stamina: -7, rep: 0.2 }, result: '음료 200개를 옮겼다. 내일 팔 근육이 기대된다.' },
+      { text: 'A/S 센터에 전화한다', style: 'dodge', fx: { anger: 3, mental: -2 }, result: '“기사님 방문은 3일 뒤입니다.” 전화를 끊고 멍해졌다.' },
+      { text: '냉장고를 살살 달래본다', style: 'humor', fx: {},
+        outcomes: [
+          { p: 0.4, fx: { anger: -5 }, result: '윙— 냉장고가 다시 돌아가기 시작했다. 대화가 통했다.' },
+          { p: 0.6, fx: { anger: 6 }, result: '냉장고는 대답하지 않았다. 16℃.' }] },
+      innerChoice('나도 식어가고 있다…')] },
+  { id: 'printer', name: '영수증 프린터 오류', icon: '🖨️', angerMin: 3, angerMax: 8, probability: 5,
+    lines: [['n', '프린터가 “용지 걸림”을 외친다. 용지는 걸려 있지 않다.']],
+    choices: [
+      { text: '용지를 다시 끼운다', style: 'std', fx: { anger: 3, stamina: -1 }, result: '세 번 끼우자 프린터가 영수증 1미터를 뱉어냈다.' },
+      { text: '“영수증은 문자로 보내드릴게요.”', style: 'dodge', fx: { anger: 1, rep: 0.1 }, result: '디지털 시대의 승리.' },
+      { text: '프린터에게 조용히 경고한다', style: 'humor', fx: { anger: -3 }, result: '프린터가 겁을 먹고 정상 작동했다. 아마 우연이다.' },
+      innerChoice('종이 걸린 건 내 인생이다…')] },
+  { id: 'no_change', name: '잔돈 부족', icon: '🪙', angerMin: 4, angerMax: 10, probability: 5, notJobs: ['call'],
+    lines: [['n', '금고에 천 원짜리가 두 장 남았다.'], ['c', '(손님) 5만 원짜리밖에 없는데 괜찮죠?']],
+    choices: [
+      { text: '옆 가게에 잔돈을 바꾸러 뛰어간다', style: 'std', fx: { anger: 5, stamina: -5, rep: 0.3 }, result: '왕복 3분. 옆 가게 사장님이 당신을 불쌍하게 봤다.' },
+      { text: '“카드 결제 부탁드려도 될까요?”', style: 'dodge', fx: { anger: 2, rep: 0 }, result: '손님이 카드를 꺼냈다. 다행히 있었다.' },
+      { text: '“거스름돈은 사탕으로 드려도 될까요?”', style: 'humor', fx: { anger: -4, rep: -0.1 }, result: '손님이 웃으며 카드로 결제했다.' },
+      innerChoice('5만 원권은 왜 늘 한가할 때 안 오는가.')] },
+  { id: 'cleaning', name: '청소 중 손님 입장', icon: '🧹', angerMin: 4, angerMax: 10, probability: 5, notJobs: ['call'], closingBoost: true,
+    lines: [['n', '바닥 물청소를 막 끝냈다. 반짝반짝하다.'], ['n', '흙 묻은 신발의 손님이 정확히 한가운데를 가로질러 들어왔다.']],
+    choices: [
+      { text: '“어서 오세요~” (미소 유지)', style: 'std', fx: { anger: 6, kind: 4, rep: 0.2 }, result: '손님이 매장을 한 바퀴 돌고 아무것도 사지 않았다. 발자국만 남았다.' },
+      { text: '“바닥이 미끄러우니 조심하세요!”', style: 'dodge', fx: { anger: 3, rep: 0.2 }, result: '손님이 발끝으로 걸었다. 발자국이 조금 작아졌다.' },
+      { text: '“방금 청소한 바닥이라 입장료가…”', style: 'humor', fx: { anger: -4, rep: -0.1 }, result: '손님이 “아이고 미안해요” 하며 까치발로 걸었다.' },
+      innerChoice('다시… 닦아야 한다…')] },
+  { id: 'closing_walkin', name: '마감 직전 손님 입장', icon: '🌙', angerMin: 8, angerMax: 16, probability: 12, notJobs: ['call'], closingOnly: true,
+    lines: [['n', '정산을 마치고 불을 반쯤 껐다. 문이 열린다.'], ['c', '아직 하죠? 금방 할게요~']],
+    choices: [
+      { text: '“네… 들어오세요…”', style: 'std', fx: { anger: 7, kind: 5, rep: 0.3, overtime: 3 }, result: '정산을 다시 했다. 퇴근 3분 지연.' },
+      { text: '“죄송하지만 영업이 종료되었습니다.”', style: 'dodge', fx: { anger: 2, rep: -0.1 }, result: '손님이 “아 그래요?” 하고 순순히 돌아갔다. 가끔은 통한다.' },
+      { text: '“마감 기념 초고속 서비스 들어갑니다!”', style: 'humor', fx: { anger: -3, rep: 0.2 }, result: '빛의 속도로 계산을 끝냈다. 기록 경신.' },
+      innerChoice('불 꺼진 거 안 보이셨어요…?')] },
+  { id: 'aircon', name: '에어컨 고장', icon: '🥵', angerMin: 5, angerMax: 12, probability: 4,
+    lines: [['n', '에어컨이 멈췄다. 실내 온도가 1분에 1도씩 올라간다.'], ['c', '(손님) 여기 왜 이렇게 더워요?']],
+    choices: [
+      { text: '선풍기를 꺼내 손님 쪽으로 돌린다', style: 'std', fx: { anger: 5, stamina: -4, rep: 0.2 }, result: '손님은 시원했고 당신은 땀범벅이 되었다.' },
+      { text: '“사우나 서비스 중입니다~”', style: 'humor', fx: { anger: -4, rep: -0.1 }, result: '손님이 웃으며 부채질을 했다.' },
+      { text: '문을 활짝 열어둔다', style: 'dodge', fx: { anger: 2, rep: 0 }, result: '바람과 함께 모기도 들어왔다.' },
+      innerChoice('내 머리 위로 김이 나고 있다.')] },
+  { id: 'call_queue', name: '대기 콜 폭주', icon: '🚨', angerMin: 6, angerMax: 14, probability: 9, jobs: ['call'], closingBoost: true,
+    lines: [['n', '대기 콜 47건. 전광판이 빨갛게 깜빡인다.'], ['c', '({boss}) 콜 처리 속도 좀 올려봐요!']],
+    choices: [
+      { text: '통화 간격 없이 연속으로 받는다', style: 'std', fx: { anger: 7, stamina: -6, rep: 0.3 }, result: '물 마실 틈도 없이 18콜을 받았다. 목이 사막이다.' },
+      { text: '짧은 휴식 요청 후 복귀한다', style: 'dodge', fx: { anger: -3, rep: -0.1 }, result: '5분 휴식. 대기 콜은 52건이 되었다.' },
+      { text: '“전광판이 크리스마스 같네요~”', style: 'humor', fx: { anger: -4 }, result: '옆자리 동료가 웃음을 터뜨렸다. 연대감 +1.' },
+      innerChoice('47명이 나를 기다린다. 나는 퇴근을 기다린다.')] },
+  { id: 'system_down', name: '상담 전산 먹통', icon: '💾', angerMin: 5, angerMax: 12, probability: 6, jobs: ['call'],
+    lines: [['n', '고객 조회 화면이 로딩 중에서 멈췄다.'], ['c', '(고객) 여보세요? 왜 말이 없어요?']],
+    choices: [
+      { text: '“잠시만요, 확인 중입니다.” (시간을 끈다)', style: 'std', fx: { anger: 6, rep: 0.1 }, result: '1분이 10년 같았다. 화면이 돌아왔다.' },
+      { text: '“확인 후 콜백 드리겠습니다.”', style: 'dodge', fx: { anger: 2, rep: 0.1 }, result: '콜백 목록 +1.' },
+      innerChoice('전산도 쉬는 시간이 필요했나 보다.')] },
+];
+
+/* ---------------------------------------------------------------------
+   아이템 — limit: 하루 사용 제한(null=무제한) · needScenario: 손님 응대 중에만 · needIdle: 응대 중 사용 불가
+--------------------------------------------------------------------- */
+const ITEMS = [
+  { id: 'coffee', icon: '☕', name: '커피', desc: '분노 -10 · 집중(체력) +10 · 카페인 +1. 카페인 3 이상이면 과다 이벤트 가능', limit: null, fx: { anger: -10, stamina: 10, caffeine: 1 } },
+  { id: 'candy', icon: '🍬', name: '사탕', desc: '분노 -5. 작지만 확실한 당 충전', limit: 5, fx: { anger: -5 } },
+  { id: 'air', icon: '🌬️', name: '바람 쐬기', desc: '분노 -20 · 퇴근 +5분. 손님 응대 중에는 사용 불가', limit: 3, needIdle: true, fx: { anger: -20, overtime: 5 } },
+  { id: 'music', icon: '🎧', name: '음악 듣기', desc: '멘탈 +15. 한쪽 귀로만 몰래', limit: 3, fx: { mental: 15 } },
+  { id: 'toilet', icon: '🚻', name: '화장실 피신', desc: '현재 손님 이벤트 1회 회피', limit: 2, needScenario: true, action: 'skip', fx: { stamina: 5 } },
+  { id: 'manager', icon: '📞', name: '매니저 호출', desc: '현재 이벤트 즉시 종료 (하루 3회)', limit: 3, needScenario: true, action: 'end', fx: { anger: -3 } },
+];
+
+const DIFFICULTIES = [
+  { id: 'peace',   name: '평화로운 매장', icon: '🌿', angerMult: 0.7,  jinsangMult: 0.6, freqMult: 0.8, eventRate: 0.15, decay: 1.3,  lastMinute: 0.3, desc: '손님이 순하고 여유가 있다' },
+  { id: 'normal',  name: '평범한 하루',   icon: '☀️', angerMult: 1.0,  jinsangMult: 1.0, freqMult: 1.0, eventRate: 0.2,  decay: 1.0,  lastMinute: 0.5, desc: '딱 평범한 서비스업의 하루' },
+  { id: 'weekend', name: '주말 저녁',     icon: '🌆', angerMult: 1.15, jinsangMult: 1.25, freqMult: 1.25, eventRate: 0.22, decay: 0.9, lastMinute: 0.6, boost: { drunk: 1.8 }, eventBoost: { group: 2, delivery_rush: 1.8 }, desc: '취객과 단체손님이 몰려온다' },
+  { id: 'hell',    name: '헬게이트',      icon: '🔥', angerMult: 1.3,  jinsangMult: 1.5, freqMult: 1.4, eventRate: 0.25, decay: 0.75, lastMinute: 0.75, desc: '진상이 진상을 부른다' },
+  { id: 'holiday', name: '명절 전날',     icon: '🎁', angerMult: 1.25, jinsangMult: 1.3, freqMult: 1.6, eventRate: 0.3,  decay: 0.85, lastMinute: 0.65, boost: { hurry: 2, discount: 1.5 }, eventBoost: { group: 2.5, delivery_rush: 2, phone_rush: 2, soldout: 2 }, desc: '모두가 급하고 모두가 할인을 원한다' },
+];
+
+/* gap: 다음 주요 손님까지(게임 분) · regular: 분당 일반손님 수(자동 응대) */
+const FREQUENCIES = [
+  { id: 'low',    name: '낮음',       gap: [12, 20], regular: 0.1 },
+  { id: 'normal', name: '보통',       gap: [7, 13],  regular: 0.2 },
+  { id: 'high',   name: '높음',       gap: [4, 8],   regular: 0.3 },
+  { id: 'crazy',  name: '미친듯이 옴', gap: [1, 4],   regular: 0.45 },
+];
+
+const SPEEDS = [1, 2, 5, 10, 20];
+
+const BALANCE = {
+  gameMinPerSec: 0.1,  // ×1 기준: 실제 1초 = 게임 0.1분 (×10이면 실제 1초 = 게임 1분 → 9시간 근무 ≈ 9분)
+  arrivalScale: 0.9,   // 손님 등장 시 분노 반영 비율
+  idleDecay: 0.4,      // 대기 중 분당 분노 자연 감소
+  staminaDrain: 0.06,  // 분당 체력 감소
+  regularStamina: 0.25,// 일반손님 1명당 체력 감소
+  hurryAfter: 20,      // 선택 없이 20분 지나면 손님 재촉
+  resultDelay: 3.2,    // 자동 진행 시 결과 표시 시간(실제 초)
+  caffeineEvery: 90,   // 카페인 1 감소 주기(게임 분)
+};
+
+const RANDOM_MESSAGES = [
+  '고객은 왕입니다. 왕도 가끔 귀양을 갑니다.',
+  '친절은 무료입니다. 하지만 멘탈은 유료입니다.',
+  '지금 웃고 있는 것은 서비스입니다.',
+  '속으로 욕하는 것은 아직 무료입니다.',
+  '퇴근까지 버티면 오늘은 당신이 승자입니다.',
+  '분노를 참으면 월급이 들어옵니다.',
+  '사표는 마음속 임시저장 중입니다.',
+  '다음 손님은 좋은 분일 겁니다. 아마도요.',
+  '“잠시만요”의 잠시는 평균 7분입니다.',
+  '오늘의 운세: 진상 주의, 천사 약간.',
+  '출근은 했는데 영혼은 아직 이불 속입니다.',
+  '미소 근육 사용량이 한도에 가까워지고 있습니다.',
+  '월요병은 요일을 가리지 않습니다.',
+  '매장 BGM이 오늘따라 슬프게 들립니다.',
+  '“수고하세요” 한마디에 시급이 오르는 기분.',
+  '퇴근 시간은 다가오지 않습니다. 우리가 다가갈 뿐.',
+  '인내심 게이지는 충전식이 아닙니다.',
+  '당신의 미소는 오늘도 야근 중입니다.',
+];
+
+const NPC_DIALOGUES = {
+  /* 선택 후 겉으로 한 말과 짝을 이루는 랜덤 속마음 */
+  inner: {
+    std: ['아까 설명드렸잖아요…', '저도 집에 가고 싶습니다.', '웃자. 웃어야 월급이 나온다.', '이 대사, 오늘만 서른 번째.', '프로는 표정으로 말하지 않는다.'],
+    dodge: ['공은 넘어갔다. 나는 자유다.', '못 본 척은 생존 기술이다.', '내 책임 아님. 아마도.', '피하는 것도 실력이다.'],
+    humor: ['웃기면 이긴 거다.', '방금 좀 웃겼지?', '사표 대신 드립을 냈다.', '개그로 버티는 인생.'],
+    risk: ['후회는 없다. 아마 내일 생길 거다.', '평판보다 내 멘탈이 소중하다.', '속이 다 시원하네.', '사장님께는 비밀로…'],
+  },
+  surface: ['확인해드리겠습니다.', '네 고객님.', '감사합니다~', '잠시만 기다려주세요.'],
+  waiting: ['매장이 잠시 조용합니다…', '진열대를 정리하는 척 숨을 고릅니다.', '물 한 모금 마실 수 있는 황금 시간.', '문 쪽을 긴장한 채 바라봅니다.', '출입문 센서가 조용합니다. 불길하게.'],
+  pray: ['제발 아무도 들어오지 마세요.', '문아… 열리지 마라…', '딱 1분만… 딱 1분만…'],
+  relief: ['…휴. 아무도 오지 않았다.', '…바람 소리였다. 살았다.', '문은 끝내 열리지 않았다. 승리.'],
+  hurry: ['손님이 발을 동동 구르기 시작합니다. (분노 +3)', '“저기요? 아직이에요?” 손님이 재촉합니다. (분노 +3)'],
+  combo: { 2: '진상 COMBO ×2 — 슬슬 느낌이 온다.', 3: '이 정도면 누가 일부러 보내는 것 같습니다.', 4: '오늘 무슨 날인가요? 달력을 확인해봅니다.', 5: 'HELL MODE 발동! 분노 증가량 ×1.5' },
+  caffeine: '☕ 카페인 과다! 손이 떨리고 심장이 두근거립니다.',
+  closing: '⚠ 마감 시간 접근 중 — 진상 출현 확률 증가',
+};
+
+/* 업적 — check(ctx): ctx.today · ctx.cum(누적+오늘) · ctx.clear · ctx.over · ctx.S(현재 상태) */
+const ACHIEVEMENTS = [
+  { id: 'first_jinsang', icon: '😠', name: '첫 진상손님', desc: '진상손님을 처음 상대했다', check: c => c.cum.jinsang >= 1 },
+  { id: 'jinsang10', icon: '🥊', name: '진상 10연전', desc: '진상손님 누적 10명 상대', check: c => c.cum.jinsang >= 10 },
+  { id: 'drunk5', icon: '🍺', name: '취객 전문가', desc: '취객 누적 5명 상대', check: c => c.cum.drunk >= 5 },
+  { id: 'clear_90', icon: '🌋', name: '폭발 직전 퇴근', desc: '최고 분노 90% 이상에서 퇴근 성공', check: c => c.clear && c.today.maxAnger >= 90 },
+  { id: 'clear_30', icon: '🧘', name: '평정심 유지', desc: '최고 분노 30% 이하로 퇴근 성공', check: c => c.clear && c.today.maxAnger <= 30 },
+  { id: 'kiosk20', icon: '🤖', name: '키오스크 구조대', desc: '키오스크 도움 누적 20회', check: c => c.cum.kiosk >= 20 },
+  { id: 'no_manager', icon: '💪', name: '독고다이', desc: '매니저 호출 없이 퇴근', check: c => c.clear && c.S.managerCalls === 0 },
+  { id: 'no_item', icon: '🚫', name: '맨몸 근무', desc: '아이템 없이 퇴근', check: c => c.clear && c.S.itemsUsed === 0 },
+  { id: 'angel5', icon: '😇', name: '천사를 만났다', desc: '천사손님 누적 5명', check: c => c.cum.angel >= 5 },
+  { id: 'hell_survive', icon: '🔥', name: 'HELL 생존자', desc: 'HELL MODE 발동 후 퇴근 성공', check: c => c.clear && c.S.hellReached },
+  { id: 'first_clear', icon: '🎉', name: '첫 퇴근', desc: '처음으로 퇴근에 성공', check: c => c.clear },
+  { id: 'combo3', icon: '🎯', name: '누가 보낸 거죠?', desc: '진상 COMBO ×3 달성', check: c => c.S.maxCombo >= 3 },
+  { id: 'breakdown', icon: '💥', name: '멘탈 조기퇴근', desc: '처음으로 멘탈 붕괴', check: c => c.over },
+  { id: 'held50', icon: '🤐', name: '삼킨 말만 50마디', desc: '하루에 참은 말 50번', check: c => c.today.held >= 50 },
+  { id: 'overtime30', icon: '⏰', name: '연장의 아이콘', desc: '하루 퇴근 지연 30분 이상', check: c => c.today.overtime >= 30 },
+  { id: 'rep5', icon: '🌟', name: '별점 5점 직원', desc: '고객 평판 5.0 달성', check: c => c.S.stats.rep >= 5 },
+];
+
+/* 칭호 — 위에서부터 첫 번째로 조건을 만족한 칭호가 대표 칭호 */
+const TITLES = [
+  { id: 'buddha',    name: '살아있는 부처',     desc: '최고 분노 20% 이하로 퇴근',   cond: r => r.maxAnger <= 20 },
+  { id: 'god',       name: '퇴근의 신',        desc: '최고 분노 30% 이하 · 멘탈 70 이상', cond: r => r.maxAnger <= 30 && r.mental >= 70 },
+  { id: 'hellgate',  name: '헬게이트 탈출자',   desc: 'HELL MODE를 겪고도 퇴근',     cond: r => r.hellReached },
+  { id: 'edge',      name: '아슬아슬 생존자',   desc: '최고 분노 90% 이상에서 퇴근',  cond: r => r.maxAnger >= 90 },
+  { id: 'tamer',     name: '진상 조련사',      desc: '하루 진상 10명 이상 상대',     cond: r => r.jinsang >= 10 },
+  { id: 'drunkm',    name: '취객 마스터',      desc: '하루 취객 3명 이상 상대',      cond: r => r.drunk >= 3 },
+  { id: 'kioskm',    name: '키오스크 전도사',   desc: '하루 키오스크 도움 5회 이상',  cond: r => r.kiosk >= 5 },
+  { id: 'patience',  name: '인내의 달인',      desc: '하루 참은 말 30번 이상',       cond: r => r.held >= 30 },
+  { id: 'smile',     name: '웃는 얼굴의 전사',  desc: '친절 80 이상으로 퇴근',        cond: r => r.kind >= 80 },
+  { id: 'vest',      name: '멘탈 방탄조끼',     desc: '멘탈 80 이상으로 퇴근',        cond: r => r.mental >= 80 },
+  { id: 'calm',      name: '평온한 알바생',     desc: '최고 분노 50% 이하로 퇴근',    cond: r => r.maxAnger <= 50 },
+  { id: 'survivor',  name: '서비스업 생존자',   desc: '오늘도 살아서 퇴근',           cond: r => true },
+];
+
+/* =====================================================================
+   엔진 영역
+   ===================================================================== */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const pad2 = n => String(n).padStart(2, '0');
+const toMin = hhmm => { const [h, m] = String(hhmm || '09:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+const fmtHM = min => { const m = Math.floor(((min % 1440) + 1440) % 1440); return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60); };
+function weightedPick(pairs) {
+  const total = pairs.reduce((s, p) => s + p[1], 0);
+  if (total <= 0) return null;
+  let r = Math.random() * total;
+  for (const [item, w] of pairs) { if ((r -= w) <= 0) return item; }
+  return pairs[pairs.length - 1][0];
+}
+const CUSTOMER_MAP = Object.fromEntries(CUSTOMERS.map(c => [c.id, c]));
+const JOB_MAP = Object.fromEntries(JOB_TYPES.map(j => [j.id, j]));
+const DIFF_MAP = Object.fromEntries(DIFFICULTIES.map(d => [d.id, d]));
+const FREQ_MAP = Object.fromEntries(FREQUENCIES.map(f => [f.id, f]));
+const ITEM_MAP = Object.fromEntries(ITEMS.map(i => [i.id, i]));
+
+/* ---------- 저장 ---------- */
+const STORE_KEY = 'anger-sim-v1';
+function defaultData() {
+  return {
+    settings: {
+      job: 'conv', diff: 'normal', start: '09:00', end: '18:00', freq: 'normal', jinsang: 45, speed: 10,
+      toggles: { drunk: true, kiosk: true, child: true, group: true, rare: true, sfx: true, bgm: false, shake: true, auto: true },
+    },
+    records: { days: 0, clears: 0, gameovers: 0, totalCustomers: 0, totalJinsang: 0, totalKiosk: 0, totalDrunk: 0, totalAngel: 0,
+      highestAnger: 0, bestCustomers: 0, bestHeld: 0, lowestClearAnger: null },
+    achievements: [],
+    titles: [],
+  };
+}
+function loadGameData() {
+  const base = defaultData();
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return base;
+    const d = JSON.parse(raw);
+    return {
+      settings: Object.assign({}, base.settings, d.settings, { toggles: Object.assign({}, base.settings.toggles, d.settings && d.settings.toggles) }),
+      records: Object.assign({}, base.records, d.records),
+      achievements: Array.isArray(d.achievements) ? d.achievements : [],
+      titles: Array.isArray(d.titles) ? d.titles : [],
+    };
+  } catch (e) { return base; }
+}
+function saveGameData() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(CFG)); } catch (e) { /* 저장 불가 환경은 무시 */ }
+}
+let CFG = loadGameData();
+const cfgJob = () => JOB_MAP[CFG.settings.job] || JOB_TYPES[0];
+
+/* ---------- 게임 상태 ---------- */
+let S = null;
+function newState() {
+  const s = CFG.settings;
+  let startMin = toMin(s.start), endMin = toMin(s.end);
+  if (endMin <= startMin) endMin += 1440; // 야간 근무
+  return {
+    phase: 'title',
+    job: JOB_MAP[s.job] || JOB_TYPES[0], diff: DIFF_MAP[s.diff] || DIFFICULTIES[1],
+    startMin, endMin, baseEndMin: endMin, min: startMin,
+    stats: { anger: 0, mental: 80, stamina: 100, kind: 50, rep: 3.0, caffeine: 0 },
+    current: null, result: null, resultTimer: 0,
+    nextSpawnAt: startMin + 2,
+    combo: 0, maxCombo: 0, hell: false, hellReached: false,
+    itemUses: {}, itemsUsed: 0, managerCalls: 0,
+    today: { customers: 0, featured: 0, regular: 0, jinsang: 0, kiosk: 0, drunk: 0, angel: 0, events: 0, held: 0, maxAnger: 0, overtime: 0 },
+    log: [], angerHistory: [[startMin, 0]],
+    regAcc: 0, caffAcc: 0, histAcc: 0,
+    closingNotified: false, prayState: 0, lastMinuteUsed: false,
+    recent: [], committed: false, waitMsg: pick(NPC_DIALOGUES.waiting), crit: false,
+  };
+}
+S = newState();
+
+const remainingMin = () => S.endMin - S.min;
+const isClosing = () => S.phase === 'playing' && remainingMin() <= 10;
+function scenarioAllowed(scn, job) {
+  if (scn.jobs) return scn.jobs.includes(job.id);
+  if (scn.notJobs && scn.notJobs.includes(job.id)) return false;
+  return !job.strictScenarios;
+}
+function scenarioPool(cust, job) {
+  const own = cust.scenarios.filter(sc => scenarioAllowed(sc, job));
+  const jobOnes = job.scenarios.filter(sc => sc.customer === cust.id);
+  return { own, jobOnes };
+}
+function hasScenario(cust, job) { const p = scenarioPool(cust, job); return p.own.length + p.jobOnes.length > 0; }
+
+/* ---------- 게임 흐름 ---------- */
+function initGame() {
+  buildStaticUI();
+  bindEvents();
+  resetGame();
+  setInterval(loop, 100);
+  setInterval(rotateMessage, 12000);
+}
+
+function resetGame() {
+  document.body.classList.remove('frozen', 'lv60', 'lv80', 'hell');
+  $('#breakdown').hidden = true; $('#critical').hidden = true; $('#overlay').hidden = true;
+  Sound.stopBgm();
+  S = newState();
+  renderAll();
+}
+
+function startGame() {
+  Sound.ensure();
+  resetGame();
+  S.phase = 'playing';
+  S.nextSpawnAt = S.min + rand(1.5, 3);
+  addLog({ icon: '🏃', name: '출근', sub: `${S.job.icon} ${S.job.name} · ${S.diff.name}`, kind: 'good', delta: null });
+  toast('출근 완료!', `${fmtHM(S.endMin)} 퇴근까지 버텨보세요. 선택지를 눌러 손님을 응대합니다.`, 'info');
+  Sound.play('start');
+  Sound.startBgm();
+  renderAll();
+}
+
+function pauseGame(force) {
+  if (S.phase !== 'playing' && S.phase !== 'paused') return;
+  const toPause = typeof force === 'boolean' ? force : S.phase === 'playing';
+  S.phase = toPause ? 'paused' : 'playing';
+  if (toPause) Sound.stopBgm(); else Sound.startBgm();
+  renderControls(); renderScene();
+}
+
+let lastTick = performance.now();
+let uiAcc = 0;
+function loop() {
+  const now = performance.now();
+  const dt = Math.min(1, (now - lastTick) / 1000);
+  lastTick = now;
+  stepGame(dt);
+  uiAcc += dt;
+  if (uiAcc >= 0.2) { uiAcc = 0; flushUI(); }
+}
+
+/* 실제 경과 dt(초)만큼 게임을 진행 */
+function stepGame(dt) {
+  if (S.phase !== 'playing') return;
+  // 결과 화면 자동 진행 (실제 시간 기준)
+  if (S.result && CFG.settings.toggles.auto) {
+    S.resultTimer -= dt;
+    if (S.resultTimer <= 0) nextFromResult();
+  }
+  const rem = remainingMin();
+  const speed = (rem <= 1.05 && rem > 0) ? Math.min(CFG.settings.speed, 1) : CFG.settings.speed; // 마지막 1분 슬로모션
+  const gm = dt * speed * BALANCE.gameMinPerSec;
+  if (S.current && S.min + gm >= S.endMin) {
+    S.min = Math.max(S.min, S.endMin); // 손님 응대 중에는 퇴근 시각에서 대기
+  } else {
+    S.min += gm;
+  }
+  updateClock();
+  passiveTick(gm);
+  if (S.phase !== 'playing') return;
+  closingTick();
+  if (!S.current && !S.result && S.prayState === 0 && S.min >= S.nextSpawnAt && remainingMin() > 1) spawnNext();
+  if (S.current && !S.current.hurried && S.min - S.current.arrivedAt >= BALANCE.hurryAfter && S.current.kind === 'customer') {
+    S.current.hurried = true;
+    toast('재촉!', pick(NPC_DIALOGUES.hurry), 'warn');
+    applyEffects({ anger: 3 }, S.current);
+  }
+  checkWorkComplete();
+}
+
+function passiveTick(gm) {
+  const st = S.stats;
+  if (!S.current) updateAnger(-BALANCE.idleDecay * S.diff.decay * gm, { silent: true });
+  if (st.stamina < 15) updateAnger(0.12 * gm, { silent: true });
+  changeStat('stamina', -BALANCE.staminaDrain * gm * (st.caffeine > 0 ? 0.5 : 1), true);
+  if (st.anger < 30) changeStat('mental', 0.04 * gm, true);
+  else if (st.anger > 80) changeStat('mental', -0.15 * gm, true);
+  else if (st.anger > 50) changeStat('mental', -0.06 * gm, true);
+  S.caffAcc += gm;
+  if (S.caffAcc >= BALANCE.caffeineEvery) { S.caffAcc = 0; if (st.caffeine > 0) changeStat('caffeine', -1, true); }
+  // 일반손님(자동 응대)
+  const freq = FREQ_MAP[CFG.settings.freq] || FREQUENCIES[1];
+  S.regAcc += gm * freq.regular * S.diff.freqMult;
+  while (S.regAcc >= 1) {
+    S.regAcc -= 1;
+    S.today.customers++; S.today.regular++;
+    changeStat('stamina', -BALANCE.regularStamina, true);
+    if (Math.random() < 0.18) addLog({ icon: '🙂', name: '일반손님', sub: '무난히 응대', kind: 'good', delta: 0, quiet: true });
+  }
+  S.histAcc += gm;
+  if (S.histAcc >= 5) { S.histAcc = 0; S.angerHistory.push([S.min, Math.round(st.anger)]); }
+  markDirty('stats');
+  checkGameOver();
+}
+
+function closingTick() {
+  const rem = remainingMin();
+  if (rem <= 10 && !S.closingNotified) {
+    S.closingNotified = true;
+    toast('마감 시간 접근 중', '퇴근 10분 전! 취객·환불·단체손님 확률이 올라갑니다.', 'warn');
+    Sound.play('warn');
+    markDirty('clock');
+  }
+  if (rem <= 1 && rem > 0 && S.prayState === 0 && !S.current && !S.result) {
+    S.prayState = 1;
+    S.prayMsg = pick(NPC_DIALOGUES.pray);
+    renderScene();
+  } else if (S.prayState === 1 && rem <= 0.5) {
+    S.prayState = 2;
+    const willCome = CFG.settings.toggles.rare && !S.lastMinuteUsed && Math.random() < S.diff.lastMinute;
+    Sound.play('bell');
+    if (willCome) {
+      S.lastMinuteUsed = true;
+      spawnCustomer('last_minute');
+    } else {
+      S.prayMsg = pick(NPC_DIALOGUES.relief);
+      renderScene();
+    }
+  }
+}
+
+function spawnNext() {
+  const rate = S.diff.eventRate * (isClosing() ? 1.3 : 1);
+  if (Math.random() < rate) spawnEvent(); else spawnCustomer();
+}
+
+/* 같은 그룹(진상/일반) 안에서의 등장 가중치 */
+function customerWeight(c) {
+  const job = S.job;
+  let w = c.probability;
+  w *= (job.weights && job.weights[c.id] != null ? job.weights[c.id] : 1);
+  w *= (S.diff.boost && S.diff.boost[c.id]) || 1;
+  if (isClosing() && c.closingBoost) w *= 2.5;
+  return w;
+}
+
+/* 진상 비율 = 설정 슬라이더(%) × 난이도 보정 (+마감 10분 전 10%p) */
+function jinsangShare() {
+  const s = CFG.settings.jinsang;
+  if (s <= 0) return 0;
+  return clamp(s / 100 * S.diff.jinsangMult + (isClosing() ? 0.1 : 0), 0, 0.95);
+}
+
+function spawnCustomer(forcedId) {
+  const job = S.job, tg = CFG.settings.toggles;
+  let cust;
+  if (forcedId) {
+    cust = CUSTOMER_MAP[forcedId];
+  } else {
+    const pool = CUSTOMERS.filter(c => !c.special && (!c.toggle || tg[c.toggle]) && (!c.rare || tg.rare) && hasScenario(c, job));
+    const jin = pool.filter(c => c.jinsang), nice = pool.filter(c => !c.jinsang);
+    const group = (!nice.length || (jin.length && Math.random() < jinsangShare())) ? jin : nice;
+    cust = weightedPick(group.map(c => [c, customerWeight(c)]).filter(p => p[1] > 0)) || CUSTOMER_MAP.normal;
+  }
+  if (!cust) return;
+  const scn = pickScenario(cust, job);
+  if (!scn) return;
+  showScenario({ kind: 'customer', src: cust, scn });
+}
+
+function pickScenario(cust, job) {
+  let { own, jobOnes } = scenarioPool(cust, job);
+  if (!own.length && !jobOnes.length) own = cust.scenarios; // 강제 호출 시 직업 무관 대체
+  const notRecent = arr => { const f = arr.filter(s => !S.recent.includes(s.id)); return f.length ? f : arr; };
+  if (jobOnes.length && (!own.length || Math.random() < (job.jobRate || 0.45))) return pick(notRecent(jobOnes));
+  return pick(notRecent(own.length ? own : jobOnes));
+}
+
+function spawnEvent(forcedId) {
+  const job = S.job, tg = CFG.settings.toggles, closing = isClosing();
+  let ev;
+  if (forcedId) ev = EVENTS.find(e => e.id === forcedId);
+  else {
+    const pairs = EVENTS
+      .filter(e => scenarioAllowed(e, job) && (!e.toggle || tg[e.toggle]) && (!e.closingOnly || closing))
+      .map(e => [e, e.probability * (closing && e.closingBoost ? 2.5 : 1) * ((S.diff.eventBoost && S.diff.eventBoost[e.id]) || 1)]);
+    ev = weightedPick(pairs);
+  }
+  if (!ev) { spawnCustomer(); return; }
+  showScenario({ kind: 'event', src: ev, scn: ev });
+}
+
+/* 상황 인스턴스 생성 + 등장 효과 */
+function showScenario({ kind, src, scn }) {
+  const job = S.job;
+  const prod = pick(job.products);
+  const inst = {
+    uid: Date.now() + Math.random(), kind, src, scn,
+    ctx: { product: prod[0], price: (prod[1] - (prod[1] > 1000 ? 300 : 100)).toLocaleString('ko-KR'), branch: pick(job.branches), boss: job.boss, place: job.name, prodItem: prod },
+    loopCount: 1, loopTarget: scn.loop ? randInt(scn.loop[0], scn.loop[1]) : 1,
+    arrivedAt: S.min, hurried: false, angerDelta: 0, loopLine: null,
+  };
+  inst.choices = scn.choices.map(resolveChoice);
+  if (scn.receipt) inst.receipt = makeReceipt(inst);
+  S.current = inst; S.result = null;
+  S.recent.push(scn.id); if (S.recent.length > 8) S.recent.shift();
+
+  if (kind === 'customer') {
+    S.today.customers++; S.today.featured++;
+    if (src.statKey && src.statKey !== 'jinsang') S.today[src.statKey]++;
+    if (src.jinsang) S.today.jinsang++;
+    updateCombo(src);
+  } else {
+    S.today.events++;
+  }
+  // 등장 분노
+  const base = randInt(src.angerMin || 0, src.angerMax || 0) * (src.fixedAnger ? 1 : BALANCE.arrivalScale) + (src.angerBonus || 0);
+  const fx = Object.assign({}, src.arrivalFx || {}, scn.arrivalFx || {});
+  fx.anger = (fx.anger || 0) + Math.round(base);
+  if (src.jinsang) fx.mental = (fx.mental || 0) - randInt(2, 4); // 진상은 멘탈도 깎는다
+  else if (kind === 'event') fx.mental = (fx.mental || 0) - randInt(1, 2);
+  Sound.play(kind === 'event' ? 'alert' : 'bell');
+  renderScene(true);
+  applyEffects(fx, inst, { arrival: true, fixed: !!src.fixedAnger });
+  markDirty('all');
+}
+
+function resolveChoice(c) {
+  if (typeof c === 'string') return Object.assign({}, CHOICES[c]);
+  if (c.ref) { const base = CHOICES[c.ref] || {}; const o = Object.assign({}, base, c); delete o.ref; return o; }
+  return Object.assign({}, c);
+}
+
+function makeReceipt(inst) {
+  const job = S.job;
+  const items = [];
+  const n = randInt(2, 4);
+  const used = new Set();
+  for (let i = 0; i < n; i++) {
+    const p = pick(job.products);
+    if (used.has(p[0])) continue;
+    used.add(p[0]);
+    items.push({ name: p[0], qty: randInt(1, 2), price: p[1] });
+  }
+  items.push({ name: job.id === 'call' ? '부가서비스(일할)' : '봉투', qty: 1, price: 500, hl: true });
+  const total = items.reduce((s, it) => s + it.qty * it.price, 0);
+  return { items, total };
+}
+
+function updateCombo(src) {
+  if (src.jinsang) {
+    S.combo++;
+    S.maxCombo = Math.max(S.maxCombo, S.combo);
+    if (S.combo >= 2) {
+      const msg = NPC_DIALOGUES.combo[Math.min(S.combo, 5)];
+      if (S.combo >= 5 && !S.hell) {
+        S.hell = true; S.hellReached = true;
+        document.body.classList.add('hell');
+        toast('HELL MODE', '진상 COMBO ×5! 분노 증가량 ×1.5', 'warn');
+        Sound.play('hell');
+      } else if (S.combo === 3) {
+        toast(`진상 COMBO ×${S.combo}`, msg, 'warn');
+      }
+    }
+  } else if (!src.special) {
+    if (S.hell) toast('HELL MODE 해제', '정상적인 손님이 왔다. 겨우 숨을 돌린다.', 'info');
+    S.combo = 0; S.hell = false;
+    document.body.classList.remove('hell');
+  }
+  markDirty('combo');
+}
+
+function angerMultiplier() {
+  let m = S.diff.angerMult;
+  if (S.hell) m *= 1.5;
+  if (S.stats.mental < 30) m *= 1.15;
+  if (S.stats.caffeine >= 4) m *= 1.1;
+  return m;
+}
+
+/* 여러 능력치 동시 반영. inst가 있으면 분노 누적치를 기록 */
+function applyEffects(fx, inst, opt = {}) {
+  const out = {};
+  if (!fx) return out;
+  for (const key of ['anger', 'mental', 'stamina', 'kind', 'rep', 'caffeine', 'overtime']) {
+    let d = fx[key];
+    if (!d) continue;
+    if (key === 'anger') {
+      if (d > 0 && !opt.fixed) d *= angerMultiplier();
+      d = Math.round(d);
+      if (!d) continue;
+      out.anger = updateAnger(d);
+      if (inst) inst.angerDelta += out.anger;
+    } else if (key === 'overtime') {
+      S.endMin += d; S.today.overtime += d; out.overtime = d;
+      toast(`퇴근 +${d}분 😱`, `오늘은 ${fmtHM(S.endMin)}에 퇴근합니다.`, 'warn');
+      markDirty('clock');
+    } else {
+      if (key === 'rep') d = Math.round(d * 10) / 10;
+      out[key] = changeStat(key, d);
+    }
+  }
+  updateStats();
+  checkGameOver();
+  return out;
+}
+
+function changeStat(key, d, silent) {
+  const meta = STAT_META[key];
+  const before = S.stats[key];
+  S.stats[key] = clamp(before + d, meta.min, meta.max);
+  if (key === 'rep') S.stats.rep = Math.round(S.stats.rep * 100) / 100;
+  const real = S.stats[key] - before;
+  if (!silent && Math.abs(real) > 0.001) popStat(key, real);
+  markDirty('stats');
+  return real;
+}
+
+function updateAnger(delta, opt = {}) {
+  const before = S.stats.anger;
+  S.stats.anger = clamp(before + delta, 0, 100);
+  const real = S.stats.anger - before;
+  const shown = Math.round(S.stats.anger);
+  S.today.maxAnger = Math.max(S.today.maxAnger, shown);
+  if (!opt.silent && Math.abs(real) >= 0.5) {
+    angerFeedback(real);
+    S.angerHistory.push([S.min, shown]);
+  }
+  applyAngerFx();
+  markDirty('stats');
+  return Math.round(real);
+}
+
+function applyAngerFx() {
+  const a = Math.round(S.stats.anger);
+  const b = document.body;
+  b.classList.toggle('lv60', a >= 60 && a < 80);
+  b.classList.toggle('lv80', a >= 80);
+  b.classList.toggle('shake-on', !!CFG.settings.toggles.shake);
+  const crit = a >= 95 && S.phase === 'playing';
+  $('#critical').hidden = !crit;
+  if (crit && !S.crit) Sound.play('danger');
+  S.crit = crit;
+}
+
+function checkGameOver() {
+  if (S.phase !== 'playing') return false;
+  const st = S.stats;
+  if (st.anger >= 100) { gameOver('anger'); return true; }
+  if (st.mental <= 0) { gameOver('mental'); return true; }
+  if (st.rep <= 0) { gameOver('rep'); return true; }
+  return false;
+}
+
+/* 사용자의 대응 선택 */
+function selectChoice(idx) {
+  if (S.phase !== 'playing' || !S.current) return;
+  const inst = S.current;
+  const choice = inst.choices[idx];
+  if (!choice) return;
+  const btn = document.querySelector(`.choice[data-idx="${idx}"]`);
+  if (btn) { btn.classList.add('pressed'); }
+  Sound.play('click');
+
+  let fx = Object.assign({}, choice.fx || {});
+  let resultText = choice.result || '';
+  if (choice.outcomes) {
+    const o = weightedPick(choice.outcomes.map(x => [x, x.p]));
+    for (const k in o.fx) fx[k] = (fx[k] || 0) + o.fx[k];
+    resultText = o.result;
+  }
+  const style = choice.style || 'std';
+  const held = choice.held || style === 'std' || style === 'inner';
+  if (held) S.today.held++;
+
+  // 취객 대화 루프: 같은 말 반복
+  if (choice.loop && inst.scn.loop && inst.loopCount < inst.loopTarget) {
+    applyEffects(fx, inst);
+    if (S.phase !== 'playing') return;
+    inst.loopCount++;
+    inst.loopLine = pick(inst.scn.loopLines || ['(같은 말을 또 한다)']);
+    toast('대화 루프!', `같은 질문 ${inst.loopCount}회째… (${inst.loopCount}/${inst.loopTarget})`, 'warn');
+    renderScene(true);
+    return;
+  }
+
+  const applied = applyEffects(fx, inst);
+  if (S.phase !== 'playing') return;
+  const inner = choice.inner || (Math.random() < 0.6 && NPC_DIALOGUES.inner[style] ? pick(NPC_DIALOGUES.inner[style]) : null);
+  const say = style === 'inner' ? null : choice.text;
+  addLog({
+    t: inst.arrivedAt, icon: inst.src.icon, name: inst.src.name,
+    sub: (STYLE_META[style] || STYLE_META.std).label + ' · ' + stripQuotes(fill(choice.text, inst.ctx)),
+    kind: inst.kind === 'event' ? 'evt' : (inst.src.jinsang ? 'jin' : (inst.src.good ? 'good' : '')),
+    delta: inst.angerDelta,
+  });
+  S.current = null;
+  S.result = { inst, choice, style, say, inner, text: resultText, fx: applied };
+  S.resultTimer = BALANCE.resultDelay;
+  renderScene(true);
+  checkAchievements();
+  markDirty('all');
+}
+
+function nextFromResult() {
+  if (!S.result) return;
+  S.result = null;
+  if (S.prayState === 2 && remainingMin() > 1) S.prayState = 0; // 마지막 1분 손님으로 퇴근이 밀리면 다시 정상 영업
+  const freq = FREQ_MAP[CFG.settings.freq] || FREQUENCIES[1];
+  S.nextSpawnAt = S.min + rand(freq.gap[0], freq.gap[1]) / S.diff.freqMult;
+  S.waitMsg = pick(NPC_DIALOGUES.waiting);
+  renderScene();
+  checkWorkComplete();
+}
+
+/* 아이템 사용 */
+function itemState(it) {
+  const used = S.itemUses[it.id] || 0;
+  const left = it.limit == null ? null : it.limit - used;
+  let reason = '';
+  if (S.phase !== 'playing') reason = '근무 중에만 사용';
+  else if (left !== null && left <= 0) reason = '오늘 사용 횟수 소진';
+  else if (it.needScenario && !S.current) reason = '응대 중인 손님이 없음';
+  else if (it.needIdle && S.current) reason = '손님 응대 중에는 불가';
+  else if (it.id === 'coffee' && S.stats.caffeine >= 5) reason = '카페인 한계';
+  return { used, left, ok: !reason, reason };
+}
+
+function useItem(id) {
+  const it = ITEM_MAP[id];
+  if (!it) return;
+  const st = itemState(it);
+  if (!st.ok) { toast('사용 불가', `${it.name}: ${st.reason}`, 'warn'); return; }
+  S.itemUses[id] = st.used + 1;
+  S.itemsUsed++;
+  Sound.play('item');
+  if (it.action) {
+    const inst = S.current;
+    S.current = null;
+    if (id === 'manager') S.managerCalls++;
+    const text = it.action === 'skip'
+      ? '🚻 화장실로 피신했습니다. 돌아와 보니 동료가 손님을 처리해 두었습니다. 화장실은 유일한 안식처.'
+      : `📞 매니저가 나타나 상황을 정리했습니다. “${inst.src.name}” 사건 종료.`;
+    const applied = applyEffects(it.fx, null);
+    addLog({ t: inst.arrivedAt, icon: inst.src.icon, name: inst.src.name, sub: `${it.icon} ${it.name}로 넘김`, kind: 'item', delta: inst.angerDelta + (applied.anger || 0) });
+    S.result = { inst, choice: { text: `${it.icon} ${it.name}` }, style: 'dodge', say: null, inner: it.action === 'skip' ? '5분만… 딱 5분만…' : '매니저님 사랑합니다.', text, fx: applied, item: true };
+    S.resultTimer = BALANCE.resultDelay;
+    renderScene(true);
+  } else {
+    const applied = applyEffects(it.fx, null);
+    addLog({ icon: it.icon, name: it.name, sub: '아이템 사용', kind: 'item', delta: applied.anger || 0 });
+    toast(`${it.icon} ${it.name}`, it.desc.split('.')[0], 'info');
+    if (id === 'coffee' && S.stats.caffeine >= 3 && Math.random() < 0.45) {
+      toast('카페인 과다!', NPC_DIALOGUES.caffeine, 'warn');
+      applyEffects({ anger: 6, mental: -6 }, null);
+    }
+  }
+  checkAchievements();
+  markDirty('all');
+}
+
+/* 퇴근 판정 */
+function checkWorkComplete() {
+  if (S.phase !== 'playing') return false;
+  if (S.min >= S.endMin && !S.current && !S.result) { showResult(); return true; }
+  return false;
+}
+
+function commitDay(success) {
+  if (S.committed) return;
+  S.committed = true;
+  const r = CFG.records, t = S.today;
+  r.days++;
+  if (success) r.clears++; else r.gameovers++;
+  r.totalCustomers += t.customers; r.totalJinsang += t.jinsang; r.totalKiosk += t.kiosk; r.totalDrunk += t.drunk; r.totalAngel += t.angel;
+  r.highestAnger = Math.max(r.highestAnger, t.maxAnger);
+  r.bestCustomers = Math.max(r.bestCustomers, t.customers);
+  r.bestHeld = Math.max(r.bestHeld, t.held);
+  if (success) r.lowestClearAnger = r.lowestClearAnger == null ? t.maxAnger : Math.min(r.lowestClearAnger, t.maxAnger);
+  saveGameData();
+}
+
+function computeTitles() {
+  const r = Object.assign({}, S.today, { mental: Math.round(S.stats.mental), kind: Math.round(S.stats.kind), rep: S.stats.rep, hellReached: S.hellReached });
+  return TITLES.filter(t => t.cond(r));
+}
+
+function showResult() {
+  S.phase = 'done';
+  S.current = null; S.result = null;
+  Sound.stopBgm();
+  Sound.play('clear');
+  $('#critical').hidden = true;
+  document.body.classList.remove('lv60', 'lv80', 'hell');
+  const titles = computeTitles();
+  const main = titles[0];
+  for (const t of titles) if (!CFG.titles.includes(t.name)) CFG.titles.push(t.name);
+  checkAchievements({ clear: true });
+  commitDay(true);
+  addLog({ icon: '🎉', name: '퇴근 성공', sub: `${fmtHM(S.endMin)} 퇴근`, kind: 'good', delta: null });
+  renderOverlayWin(main, titles.slice(1, 4));
+  confetti();
+  renderAll();
+}
+
+function gameOver(reason) {
+  S.phase = 'over';
+  S.gameOverReason = reason;
+  S.current = null; S.result = null;
+  Sound.stopBgm();
+  Sound.play('gameover');
+  $('#critical').hidden = true;
+  document.body.classList.add('frozen');
+  $('#breakdown').hidden = false;
+  checkAchievements({ over: true });
+  commitDay(false);
+  addLog({ icon: '💥', name: '멘탈 붕괴', sub: fmtHM(S.min), kind: 'jin', delta: null });
+  renderAll();
+  setTimeout(() => {
+    if (S.phase !== 'over') return;
+    $('#breakdown').hidden = true;
+    renderOverlayLose(reason);
+  }, 1700);
+}
+
+/* 업적 */
+function checkAchievements(extra = {}) {
+  const t = S.today, r = CFG.records;
+  const done = S.committed; // 이미 누적 반영됐으면 중복 합산하지 않음
+  const cum = {
+    jinsang: r.totalJinsang + (done ? 0 : t.jinsang), kiosk: r.totalKiosk + (done ? 0 : t.kiosk),
+    drunk: r.totalDrunk + (done ? 0 : t.drunk), angel: r.totalAngel + (done ? 0 : t.angel),
+  };
+  const ctx = { today: t, cum, clear: !!extra.clear, over: !!extra.over, S };
+  for (const a of ACHIEVEMENTS) {
+    if (CFG.achievements.includes(a.id)) continue;
+    let ok = false;
+    try { ok = a.check(ctx); } catch (e) { ok = false; }
+    if (ok) unlockAchievement(a.id);
+  }
+}
+
+function unlockAchievement(id) {
+  if (CFG.achievements.includes(id)) return;
+  const a = ACHIEVEMENTS.find(x => x.id === id);
+  if (!a) return;
+  CFG.achievements.push(id);
+  saveGameData();
+  toast(`🏆 업적 달성: ${a.name}`, `${a.icon} ${a.desc}`, 'ach');
+  Sound.play('ach');
+  markDirty('tray');
+}
+
+/* 기록 */
+function addLog(entry) {
+  S.log.push(Object.assign({ t: S.min }, entry));
+  if (S.log.length > 400) S.log.shift();
+  markDirty('tray');
+}
+
+function fill(text, ctx) {
+  return String(text || '').replace(/\{(\w+)\}/g, (m, k) => (ctx && ctx[k] != null ? ctx[k] : m));
+}
+const stripQuotes = s => String(s).replace(/[“”"]/g, '');
+
+/* =====================================================================
+   사운드 (Web Audio API — 외부 파일 없음)
+   ===================================================================== */
+const Sound = {
+  ctx: null, bgmTimer: null, step: 0,
+  ensure() {
+    try {
+      if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; this.ctx = new AC(); }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+    } catch (e) { return null; }
+    return this.ctx;
+  },
+  tone(f, dur, o = {}) {
+    const c = this.ctx; if (!c) return;
+    const t0 = c.currentTime + (o.delay || 0);
+    const osc = c.createOscillator(), g = c.createGain();
+    osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(f, t0);
+    if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t0 + dur);
+    const v = o.vol == null ? 0.05 : o.vol;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(v, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.03);
+  },
+  play(name) {
+    if (!CFG.settings.toggles.sfx) return;
+    if (!this.ensure()) return;
+    const T = (f, d, o) => this.tone(f, d, o);
+    switch (name) {
+      case 'bell': T(1318, 0.5, { type: 'sine', vol: 0.08 }); T(1760, 0.7, { type: 'sine', vol: 0.06, delay: 0.12 }); break;
+      case 'alert': T(520, 0.12); T(390, 0.18, { delay: 0.13 }); break;
+      case 'angerUp': T(880, 0.07, { vol: 0.045 }); T(1175, 0.09, { vol: 0.045, delay: 0.08 }); break;
+      case 'heal': T(660, 0.1, { type: 'triangle' }); T(990, 0.16, { type: 'triangle', delay: 0.09 }); break;
+      case 'click': T(300, 0.04, { vol: 0.03 }); break;
+      case 'item': T(784, 0.08, { type: 'triangle' }); T(1046, 0.12, { type: 'triangle', delay: 0.08 }); break;
+      case 'warn': [0, 0.22].forEach(d => T(440, 0.16, { type: 'sawtooth', vol: 0.04, delay: d })); break;
+      case 'danger': [0, 0.18, 0.36, 0.54].forEach((d, i) => T(i % 2 ? 330 : 660, 0.15, { type: 'sawtooth', vol: 0.05, delay: d })); break;
+      case 'hell': T(220, 0.6, { type: 'sawtooth', vol: 0.06, to: 110 }); T(233, 0.6, { vol: 0.03, to: 98, delay: 0.05 }); break;
+      case 'ach': [784, 988, 1175, 1568].forEach((f, i) => T(f, 0.1, { vol: 0.04, delay: i * 0.07 })); break;
+      case 'start': [523, 659, 784].forEach((f, i) => T(f, 0.1, { vol: 0.04, delay: i * 0.08 })); break;
+      case 'clear': [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) => T(f, 0.14, { delay: i * 0.11 })); break;
+      case 'gameover': [392, 330, 262, 196].forEach((f, i) => T(f, 0.28, { type: 'sawtooth', delay: i * 0.22 })); break;
+    }
+  },
+  startBgm() {
+    if (!CFG.settings.toggles.bgm || S.phase !== 'playing' || this.bgmTimer) return;
+    if (!this.ensure()) return;
+    const bass = [131, 131, 196, 196, 147, 147, 175, 175];
+    const arp = [523, 659, 784, 659, 587, 698, 880, 698];
+    this.bgmTimer = setInterval(() => {
+      const i = this.step++ % 8;
+      this.tone(bass[i], 0.22, { type: 'triangle', vol: 0.03 });
+      if (i % 2 === 0) this.tone(arp[(this.step >> 1) % 8], 0.1, { vol: 0.012, delay: 0.05 });
+    }, S.hell ? 190 : 260);
+  },
+  stopBgm() { clearInterval(this.bgmTimer); this.bgmTimer = null; },
+};
+
+/* =====================================================================
+   UI 렌더링
+   ===================================================================== */
+let VIEW = 'dash';
+let resetConfirmOpen = false;
+let lastTrayRender = 0;
+const dirty = new Set();
+function markDirty(what) { dirty.add(what); }
+function flushUI() {
+  if (dirty.has('stats') || dirty.has('all')) updateStats();
+  if (dirty.has('combo') || dirty.has('all')) renderCombo();
+  // 트레이는 기록이 바뀌었을 때 + 1초마다만 갱신 (아이템 화면은 버튼만 제자리 갱신)
+  if (VIEW !== 'items' && (dirty.has('tray') || dirty.has('all') || performance.now() - lastTrayRender > 1000)) renderTray();
+  dirty.clear();
+  renderItems();
+  const eta = $('#waitEta');
+  if (eta) eta.textContent = `다음 손님까지 약 ${Math.max(0, Math.ceil(S.nextSpawnAt - S.min))}분`;
+  const bar = $('#autoFill');
+  if (bar) bar.style.transform = `scaleX(${clamp(S.resultTimer / BALANCE.resultDelay, 0, 1)})`;
+}
+
+function buildStaticUI() {
+  $('#speedGroup').innerHTML = SPEEDS.map(v => `<button type="button" data-speed="${v}" aria-pressed="false">×${v}</button>`).join('');
+  $('#stars').innerHTML = [0, 1, 2, 3, 4].map(() => '<span class="star">★<i>★</i></span>').join('');
+  $('#cups').innerHTML = [0, 1, 2, 3, 4].map(() => '<span>☕</span>').join('');
+  $('#itembar').innerHTML = '<span class="lbl">ITEMS</span>' + ITEMS.map(it =>
+    `<button class="item-btn" type="button" data-item="${it.id}" title="${esc(it.desc)}">${it.icon} ${esc(it.name)} <span class="cnt" data-cnt="${it.id}"></span></button>`).join('');
+}
+
+function renderAll() {
+  renderControls(); updateClock(); updateStats(); renderCombo(); renderScene(); renderItems(); renderTray(); renderSettings();
+}
+
+function renderControls() {
+  const p = S.phase;
+  const bs = $('#btnStart');
+  if (p === 'playing' || p === 'paused') { bs.textContent = '🏠 처음으로'; bs.classList.remove('primary'); }
+  else { bs.textContent = p === 'title' ? '🏃 출근하기' : '🏃 다시 출근하기'; bs.classList.add('primary'); }
+  bs.dataset.confirm = '';
+  const bp = $('#btnPause');
+  bp.disabled = !(p === 'playing' || p === 'paused');
+  bp.textContent = p === 'paused' ? '▶ 계속하기' : '⏸ 일시정지';
+  const mp = $('#mPause');
+  mp.disabled = bp.disabled;
+  mp.textContent = p === 'paused' ? '▶' : '⏸';
+  $$('#speedGroup button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === CFG.settings.speed)));
+  $('#btnSound').textContent = CFG.settings.toggles.sfx ? '🔊' : '🔇';
+}
+
+function updateClock() {
+  const rem = Math.max(0, S.endMin - S.min);
+  const secs = Math.ceil(rem * 60 - 1e-6);
+  const txt = `${pad2(Math.floor(secs / 3600))} : ${pad2(Math.floor(secs / 60) % 60)} : ${pad2(secs % 60)}`;
+  const dg = $('#clockDigits');
+  dg.textContent = txt;
+  dg.classList.toggle('slowmo', S.phase === 'playing' && rem <= 1.05 && rem > 0);
+  $('#miniTime').textContent = txt.replace(/ /g, '');
+  $('#mTime').textContent = txt.replace(/ /g, '');
+  $('#nowTime').textContent = fmtHM(S.min);
+  $('#endTime').textContent = fmtHM(S.endMin);
+  const ot = S.endMin - S.baseEndMin;
+  $('#otBadge').innerHTML = ot > 0 ? `<span class="ot-badge">+${Math.round(ot)}분 연장</span>` : '';
+  const pct = clamp((S.min - S.startMin) / (S.endMin - S.startMin) * 100, 0, 100);
+  $('#pfill').style.width = pct + '%';
+  $('#pbar').setAttribute('aria-valuenow', pct.toFixed(1));
+  $('#pPct').textContent = pct.toFixed(1) + '%';
+  $('#pStart').textContent = fmtHM(S.startMin) + ' 출근';
+  $('#pEnd').textContent = fmtHM(S.endMin) + ' 퇴근';
+  $('#closingBanner').hidden = !isClosing();
+  const lbl = { title: '출근 전 · 오늘의 근무 시간', over: '멘탈이 먼저 퇴근했습니다', done: '퇴근 완료!', paused: '일시정지 · 퇴근까지 남은 시간' }[S.phase];
+  $('#clockLabel').textContent = lbl || (rem <= 0 ? '퇴근 시간! 이 손님만 보내면 퇴근합니다' : rem <= 1.05 ? '⏳ 마지막 1분 — 슬로모션' : '퇴근까지 남은 시간');
+}
+
+function angerStage(a) { return ANGER_STAGES.find(s => a <= s.max) || ANGER_STAGES[ANGER_STAGES.length - 1]; }
+
+let angerTween = null;
+function tweenAnger() {
+  const el = $('#angerNum');
+  const from = parseInt(el.textContent, 10) || 0;
+  const start = performance.now();
+  cancelAnimationFrame(angerTween);
+  const step = now => {
+    const k = Math.min(1, (now - start) / 450);
+    const to = Math.round(S.stats.anger);
+    el.textContent = Math.round(from + (to - from) * k) + '%';
+    if (k < 1) angerTween = requestAnimationFrame(step); else angerTween = null;
+  };
+  angerTween = requestAnimationFrame(step);
+}
+
+function angerFeedback(real) {
+  const box = $('#angerBox');
+  box.classList.remove('jolt', 'heal'); void box.offsetWidth;
+  box.classList.add(real > 0 ? 'jolt' : 'heal');
+  const pop = document.createElement('span');
+  pop.className = 'pop ' + (real > 0 ? 'up' : 'down');
+  pop.textContent = (real > 0 ? '+' : '') + Math.round(real);
+  box.appendChild(pop);
+  setTimeout(() => pop.remove(), 1200);
+  Sound.play(real > 0 ? 'angerUp' : 'heal');
+  tweenAnger();
+}
+
+function popStat(key, real) {
+  const g = $('#g-' + key);
+  if (!g) return;
+  const good = STAT_META[key].goodWhenUp === null ? real < 0 : (real > 0) === STAT_META[key].goodWhenUp;
+  const pop = document.createElement('span');
+  pop.className = 'pop ' + (good ? 'down' : 'up');
+  pop.style.fontSize = '11px';
+  pop.textContent = (real > 0 ? '+' : '') + (key === 'rep' ? real.toFixed(1) : Math.round(real));
+  g.appendChild(pop);
+  setTimeout(() => pop.remove(), 1200);
+}
+
+function updateStats() {
+  const st = S.stats, a = Math.round(st.anger), sg = angerStage(a);
+  const fill = $('#angerFill');
+  fill.style.width = a + '%';
+  fill.style.setProperty('--c', sg.color);
+  if (!angerTween) $('#angerNum').textContent = a + '%';
+  $('#angerNum').style.color = sg.color;
+  $('#angerStage').textContent = sg.name;
+  $('#angerStage').style.color = sg.color;
+  const mini = $('#miniAnger');
+  $('#miniAngerVal').textContent = a + '%';
+  mini.classList.toggle('hot', a >= 60 && a < 80);
+  mini.classList.toggle('danger', a >= 80);
+  $('#mAnger').textContent = a + '%';
+  $('#mAnger').style.color = sg.color;
+  const mf = $('#mAngerFill');
+  mf.style.width = a + '%';
+  mf.style.setProperty('--c', sg.color);
+  for (const k of ['mental', 'stamina', 'kind']) {
+    const v = Math.round(st[k]);
+    $('#v-' + k).textContent = v;
+    $('#f-' + k).style.width = v + '%';
+  }
+  $('#v-rep').textContent = st.rep.toFixed(1);
+  $$('#stars .star i').forEach((el, i) => { el.style.setProperty('--f', clamp((st.rep - i) * 100, 0, 100) + '%'); });
+  $('#v-caffeine').textContent = `${st.caffeine}/5`;
+  $$('#cups span').forEach((el, i) => el.classList.toggle('on', i < st.caffeine));
+  $('#cups').classList.toggle('over', st.caffeine >= 4);
+}
+
+function renderCombo() {
+  $('#comboNum').textContent = '×' + S.combo;
+  $('#comboMsg').textContent = S.combo >= 2 ? NPC_DIALOGUES.combo[Math.min(S.combo, 5)] : '진상손님이 연속으로 오면 콤보가 쌓입니다.';
+  $('#hellTag').hidden = !S.hell;
+}
+
+function itemLeftText(it, st) {
+  return `남은 횟수: ${st.left === null ? '무제한' : st.left + '회'}${st.ok ? '' : ' · ' + st.reason}`;
+}
+/* 아이템 버튼은 다시 그리지 않고 상태만 갱신(클릭 유실 방지) */
+function renderItems() {
+  for (const it of ITEMS) {
+    const st = itemState(it);
+    $$(`[data-item="${it.id}"]`).forEach(b => { b.disabled = !st.ok; b.title = st.ok ? it.desc : `${it.desc} (${st.reason})`; });
+    $$(`[data-cnt="${it.id}"]`).forEach(c => { c.textContent = st.left === null ? '∞' : `×${st.left}`; });
+    $$(`[data-left="${it.id}"]`).forEach(c => { c.textContent = itemLeftText(it, st); });
+  }
+}
+
+function tagsFor(inst) {
+  const t = [];
+  const src = inst.src, scn = inst.scn;
+  if (inst.kind === 'event') t.push('<span class="tag evt">⚡ 돌발 사건</span>');
+  if (src.jinsang) t.push('<span class="tag jin">진상</span>');
+  if (src.rare) t.push('<span class="tag rare">✨ 희귀</span>');
+  if (src.good) t.push('<span class="tag good">힐링</span>');
+  if (scn.customer || (scn.jobs && inst.kind === 'event')) t.push(`<span class="tag job">${S.job.icon} ${S.job.name}</span>`);
+  if (scn.loop) t.push(`<span class="tag loop">🔁 대화 루프</span>`);
+  if (S.hell && src.jinsang) t.push('<span class="tag jin">HELL ×1.5</span>');
+  return t.join('');
+}
+
+function receiptHTML(inst) {
+  const r = inst.receipt;
+  const won = n => n.toLocaleString('ko-KR');
+  return `<div class="receipt" aria-label="영수증"><div class="r-h">${esc(S.job.name)} 영수증 · ${fmtHM(inst.arrivedAt)}</div>
+    ${r.items.map(it => `<div class="r-row${it.hl ? ' hl' : ''}"><span>${esc(it.name)} ×${it.qty}</span><span>${won(it.qty * it.price)}</span></div>`).join('')}
+    <div class="r-row r-tot"><span>합계</span><span>${won(r.total)}원</span></div></div>`;
+}
+
+function renderScene(enter) {
+  const el = $('#scene');
+  const p = S.phase;
+  let html = '';
+  if (p === 'title') html = titleHTML();
+  else if (p === 'over' || p === 'done') {
+    html = `<div class="idle"><div class="big">${p === 'done' ? '🎉' : '💥'}</div><h2>${p === 'done' ? '퇴근 성공! 오늘도 살아남았습니다.' : '멘탈이 먼저 퇴근했습니다.'}</h2>
+      <p>좌측 메뉴의 ‘오늘의 손님’, ‘분노 기록’에서 하루를 돌아볼 수 있습니다.</p>
+      <button class="btn primary" type="button" data-act="restart">🏃 다시 출근하기</button></div>`;
+  } else if (S.current) {
+    const inst = S.current, ctx = inst.ctx;
+    const lines = inst.scn.lines.map(([sp, t]) => `<div class="line ${sp}">${esc(fill(t, ctx))}</div>`).join('');
+    const loop = inst.loopLine ? `<div class="line loopnote">🔁 같은 말 반복 (${inst.loopCount}/${inst.loopTarget})</div><div class="line c">${esc(fill(inst.loopLine, ctx))}</div>` : '';
+    html = `<div class="who"><div class="avatar ${inst.kind === 'event' ? 'event' : ''} ${inst.src.good ? 'angel' : ''}">${inst.src.icon}</div>
+        <div><div class="who-name">${esc(inst.src.name)}</div><div class="tags">${tagsFor(inst)}</div></div></div>
+      <div class="lines">${lines}${loop}</div>
+      ${inst.receipt ? receiptHTML(inst) : ''}
+      <div class="choices" role="group" aria-label="대응 선택">${inst.choices.map((c, i) => {
+        const sm = STYLE_META[c.style] || STYLE_META.std;
+        return `<button class="choice ${sm.cls}" type="button" data-idx="${i}" ${p !== 'playing' ? 'disabled' : ''}><span class="key">${'ABCD'[i]}</span><span class="st">${sm.label}</span><span class="tx">${esc(fill(c.text, ctx))}</span></button>`;
+      }).join('')}</div>`;
+  } else if (S.result) {
+    const r = S.result, ctx = r.inst.ctx;
+    html = `<div class="who"><div class="avatar ${r.inst.kind === 'event' ? 'event' : ''} ${r.inst.src.good ? 'angel' : ''}">${r.inst.src.icon}</div>
+        <div><div class="who-name">${esc(r.inst.src.name)}</div><div class="tags"><span class="tag good">✔ 응대 완료</span><span class="tag">${(STYLE_META[r.style] || STYLE_META.std).label}</span></div></div></div>
+      <div class="result">
+        <div class="said">
+          ${r.say ? `<div><span class="k">겉으로</span> ${esc(fill(r.say, ctx))}</div>` : `<div><span class="k">선택</span> ${esc(fill(r.choice.text, ctx))}</div>`}
+          ${r.inner ? `<div><span class="k">속마음</span> <span class="inner">“${esc(fill(r.inner, ctx))}”</span></div>` : ''}
+        </div>
+        <div class="res-text">→ ${esc(fill(r.text, ctx))}</div>
+        <div class="fx-chips">${fxChips(r)}</div>
+      </div>
+      <div class="next-row"><button class="btn primary" type="button" id="btnNext">다음 손님 ▶</button>
+        ${CFG.settings.toggles.auto ? '<div class="autobar" title="자동 진행"><i id="autoFill"></i></div>' : '<span style="color:var(--dim);font-size:13px">자동 진행 OFF · Enter로 계속</span>'}</div>`;
+  } else if (S.prayState === 1) {
+    html = `<div class="idle pray"><div class="big">🙏</div><h2>${esc(S.prayMsg)}</h2><p>퇴근까지 1분. 시간이 슬로모션으로 흐릅니다…</p></div>`;
+  } else if (S.prayState === 2) {
+    html = `<div class="idle"><div class="big">😮‍💨</div><h2>${esc(S.prayMsg)}</h2><p>조금만 더… 곧 퇴근입니다!</p></div>`;
+  } else {
+    html = `<div class="idle"><div class="big">🛎️</div><h2>잠시 한가합니다</h2><p>${esc(S.waitMsg)}</p>
+      <p class="num" id="waitEta" style="color:var(--yellow)">다음 손님까지 약 ${Math.max(0, Math.ceil(S.nextSpawnAt - S.min))}분</p>
+      <button class="btn mint" type="button" id="btnCallNext" ${p !== 'playing' ? 'disabled' : ''}>🔔 다음 손님 바로 받기</button></div>`;
+  }
+  if (p === 'paused') html += '<div class="paused-tag">⏸ PAUSED</div>';
+  el.innerHTML = html;
+  if (enter) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); }
+}
+
+function fxChips(r) {
+  const chips = [];
+  for (const [k, v] of Object.entries(r.fx || {})) {
+    if (!v) continue;
+    const m = STAT_META[k];
+    const good = k === 'overtime' ? false : (m.goodWhenUp === null ? v < 0 : (v > 0) === m.goodWhenUp);
+    const val = k === 'rep' ? v.toFixed(1) : Math.round(v);
+    const unit = k === 'overtime' ? '분' : '';
+    chips.push(`<span class="fx ${good ? 'good' : 'bad'}">${m.icon} ${m.label} ${v > 0 ? '+' : ''}${val}${unit}</span>`);
+  }
+  if (!r.item && r.inst.angerDelta) chips.push(`<span class="fx neu">이번 손님 분노 합계 ${r.inst.angerDelta > 0 ? '+' : ''}${r.inst.angerDelta}</span>`);
+  if (!chips.length) chips.push('<span class="fx neu">능력치 변화 없음</span>');
+  return chips.join('');
+}
+
+function titleHTML() {
+  const s = CFG.settings;
+  let dur = toMin(s.end) - toMin(s.start); if (dur <= 0) dur += 1440;
+  const realMin = Math.max(1, Math.round(dur / (s.speed * BALANCE.gameMinPerSec) / 60));
+  return `<div class="title-screen">
+    <div><div class="hero-line">오늘도 무사히 퇴근할 수 있을까?</div>
+      <p class="hero-sub">분노 게이지 100%가 되면 당신의 멘탈이 먼저 퇴근합니다.</p></div>
+    <div><div class="pick-label">① 오늘의 근무지</div><div class="pick-grid">${JOB_TYPES.map(j =>
+      `<button class="pick" type="button" data-job="${j.id}" aria-pressed="${s.job === j.id}"><span class="ic">${j.icon}</span>${esc(j.name)}</button>`).join('')}</div></div>
+    <div><div class="pick-label">② 오늘의 난이도</div><div class="pick-grid diff">${DIFFICULTIES.map(d =>
+      `<button class="pick" type="button" data-diff="${d.id}" aria-pressed="${s.diff === d.id}"><span class="ic">${d.icon}</span>${esc(d.name)}<small>${esc(d.desc)}</small></button>`).join('')}</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <button class="btn primary" type="button" data-act="start" style="font-size:24px;padding:12px 28px">🏃 출근하기</button>
+      <span style="color:var(--muted);font-size:14px">근무 ${esc(s.start)}~${esc(s.end)} · 속도 ×${s.speed} · 실제 약 ${realMin}분 소요</span>
+    </div>
+    <div class="how">
+      <div><b>① 상황 파악</b>손님이 오면 가운데에 대사가 나옵니다.</div>
+      <div><b>② 대응 선택</b>A~D 중 하나를 누르면 분노·멘탈·평판이 변합니다.</div>
+      <div><b>③ 퇴근까지 생존</b>분노 100%가 되기 전에 퇴근 시간을 맞이하세요.</div>
+    </div></div>`;
+}
+
+/* ---------- 하단 트레이(메뉴별 화면) ---------- */
+function openSettings() {
+  const panel = $('#setpanel');
+  panel.open = true;
+  renderSettings();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function setView(v) {
+  if (v === 'settings') { openSettings(); return; }
+  VIEW = v;
+  $$('#sidenav .nav-btn').forEach(b => b.setAttribute('aria-current', String(b.dataset.view === v)));
+  renderTray();
+  if (window.innerWidth <= 1180 && v !== 'dash') $('#tray').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderTray() {
+  lastTrayRender = performance.now();
+  const el = $('#tray');
+  const views = { dash: dashHTML, log: logViewHTML, anger: angerViewHTML, items: itemsViewHTML, ach: achViewHTML, stats: statsViewHTML };
+  el.innerHTML = (views[VIEW] || dashHTML)();
+}
+
+let currentMessage = pick(RANDOM_MESSAGES);
+function rotateMessage() {
+  currentMessage = pick(RANDOM_MESSAGES.filter(m => m !== currentMessage));
+  const box = $('#msgBox');
+  if (box) box.textContent = currentMessage;
+}
+
+function renderCustomerLog(limit) {
+  const rows = S.log.slice(-limit).reverse();
+  if (!rows.length) return '<div class="empty">아직 기록이 없습니다. 출근하면 손님 기록이 쌓입니다.</div>';
+  return `<div class="log">${rows.map(r => `<div class="log-row ${r.kind || ''}">
+    <span class="t num">${fmtHM(r.t)}</span><span>${r.icon}</span>
+    <span style="min-width:0">${esc(r.name)}<span class="sub">${esc(r.sub || '')}</span></span>
+    <span class="d num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : 'zero'}">${r.delta == null ? '' : (r.delta > 0 ? '+' : '') + r.delta}</span></div>`).join('')}</div>`;
+}
+
+function renderStatistics() {
+  const t = S.today;
+  const tiles = [
+    ['오늘 만난 손님', `${t.customers}<small>명</small>`], ['진상손님', `${t.jinsang}<small>명</small>`],
+    ['키오스크 도움', `${t.kiosk}<small>회</small>`], ['취객', `${t.drunk}<small>명</small>`],
+    ['천사손님', `${t.angel}<small>명</small>`], ['참은 말', `${t.held}<small>번</small>`],
+    ['최고 분노', `${t.maxAnger}<small>%</small>`], ['사용한 아이템', `${S.itemsUsed}<small>개</small>`],
+    ['돌발 사건', `${t.events}<small>건</small>`], ['퇴근 지연', `${Math.round(t.overtime)}<small>분</small>`],
+  ];
+  return `<div class="stat-grid">${tiles.map(([k, v]) => `<div class="stat-tile"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('')}</div>`;
+}
+
+function recordTiles() {
+  const r = CFG.records;
+  const tiles = [
+    ['퇴근 성공', `${r.clears}<small>회</small>`], ['멘탈 붕괴', `${r.gameovers}<small>회</small>`],
+    ['누적 손님', `${r.totalCustomers}<small>명</small>`], ['누적 진상', `${r.totalJinsang}<small>명</small>`],
+    ['역대 최고 분노', `${r.highestAnger}<small>%</small>`], ['하루 최다 손님', `${r.bestCustomers}<small>명</small>`],
+    ['최저 분노 퇴근', r.lowestClearAnger == null ? '-' : `${r.lowestClearAnger}<small>%</small>`], ['하루 최다 참은 말', `${r.bestHeld}<small>번</small>`],
+  ];
+  return `<div class="stat-grid">${tiles.map(([k, v]) => `<div class="stat-tile"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('')}</div>`;
+}
+
+function dashHTML() {
+  return `<div class="tray-grid">
+    <section class="card"><div class="card-title">CUSTOMER LOG <span class="ko">오늘의 손님 기록</span></div>${renderCustomerLog(7)}</section>
+    <section class="card"><div class="card-title">LIVE STATS <span class="ko">현재 통계</span></div>${renderStatistics()}</section>
+    <section class="card"><div class="card-title">MESSAGE <span class="ko">오늘의 한마디</span></div><div class="msg-box" id="msgBox">${esc(currentMessage)}</div></section>
+    <section class="card"><div class="card-title">RECORDS <span class="ko">누적 기록</span></div>${recordTiles()}</section>
+  </div>`;
+}
+
+function logViewHTML() {
+  const rows = S.log.slice().reverse();
+  const regular = S.today.regular;
+  return `<section class="card"><div class="card-title">CUSTOMER LOG <span class="ko">오늘의 손님 (${S.today.featured}건 응대 · 일반손님 ${regular}명 자동 응대)</span></div>
+    ${rows.length ? `<div class="table-wrap"><table class="log-table"><thead><tr><th>시간</th><th>손님/사건</th><th>선택한 대응</th><th>분노 변화</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td class="num">${fmtHM(r.t)}</td><td>${r.icon} ${esc(r.name)}</td><td class="wrap">${esc(r.sub || '')}</td>
+      <td class="num" style="color:${r.delta > 0 ? 'var(--red)' : r.delta < 0 ? 'var(--mint)' : 'var(--dim)'}">${r.delta == null ? '-' : (r.delta > 0 ? '+' : '') + r.delta}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty">아직 응대한 손님이 없습니다.</div>'}</section>`;
+}
+
+function angerViewHTML() {
+  const W = 640, H = 230, L = 34, R = 12, T = 12, B = 30;
+  const x0 = S.startMin, x1 = Math.max(S.endMin, S.min, x0 + 1);
+  const pts = S.angerHistory.concat([[S.min, Math.round(S.stats.anger)]]);
+  const X = m => L + (m - x0) / (x1 - x0) * (W - L - R);
+  const Y = v => T + (1 - v / 100) * (H - T - B);
+  const line = pts.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+  const area = `${X(pts[0][0]).toFixed(1)},${Y(0)} ${line} ${X(pts[pts.length - 1][0]).toFixed(1)},${Y(0)}`;
+  const ticks = [];
+  for (let m = Math.ceil(x0 / 60) * 60; m <= x1; m += 60) ticks.push(m);
+  const last = pts[pts.length - 1];
+  const spikes = S.log.filter(r => r.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 8);
+  return `<section class="card"><div class="card-title">ANGER HISTORY <span class="ko">분노 기록 · 최고 ${S.today.maxAnger}%</span></div>
+    <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="시간대별 분노 변화 그래프">
+      ${[0, 20, 40, 60, 80, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" style="stroke:var(--line);stroke-width:1"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" style="fill:var(--dim);font-size:10px">${v}</text>`).join('')}
+      ${[[60, 'var(--yellow)'], [80, 'var(--orange)'], [95, 'var(--red)']].map(([v, c]) => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" style="stroke:${c};stroke-dasharray:4 4;stroke-width:1.5;opacity:.8"/>`).join('')}
+      ${ticks.map(m => `<text x="${X(m)}" y="${H - 10}" text-anchor="middle" style="fill:var(--dim);font-size:10px">${fmtHM(m)}</text>`).join('')}
+      <polygon points="${area}" style="fill:var(--pink);opacity:.15"/>
+      <polyline points="${line}" style="fill:none;stroke:var(--pink);stroke-width:2.5;stroke-linejoin:round"/>
+      <circle cx="${X(last[0])}" cy="${Y(last[1])}" r="5" style="fill:var(--yellow);stroke:var(--bg);stroke-width:2"/>
+    </svg></div>
+    <div class="card-title" style="margin-top:14px">TOP SPIKES <span class="ko">분노 폭발 순간</span></div>
+    ${spikes.length ? `<div class="log">${spikes.map(r => `<div class="log-row jin"><span class="t num">${fmtHM(r.t)}</span><span>${r.icon}</span><span style="min-width:0">${esc(r.name)}<span class="sub">${esc(r.sub || '')}</span></span><span class="d up num">+${r.delta}</span></div>`).join('')}</div>` : '<div class="empty">아직 분노가 오른 적이 없습니다. 평화롭네요.</div>'}
+  </section>`;
+}
+
+function itemsViewHTML() {
+  return `<section class="card"><div class="card-title">ITEMS <span class="ko">아이템 · 사용한 아이템 ${S.itemsUsed}개</span></div>
+    <div class="item-cards">${ITEMS.map(it => {
+      const st = itemState(it);
+      return `<div class="item-card"><h3>${it.icon} ${esc(it.name)}</h3><p>${esc(it.desc)}</p>
+        <p class="num" data-left="${it.id}">${esc(itemLeftText(it, st))}</p>
+        <button class="item-btn" type="button" data-item="${it.id}" ${st.ok ? '' : 'disabled'}>${it.icon} 사용하기</button></div>`;
+    }).join('')}</div></section>`;
+}
+
+function achViewHTML() {
+  const got = CFG.achievements;
+  return `<section class="card"><div class="card-title">ACHIEVEMENTS <span class="ko">업적 ${got.length} / ${ACHIEVEMENTS.length}</span></div>
+    <div class="ach-grid">${ACHIEVEMENTS.map(a => `<div class="ach ${got.includes(a.id) ? 'got' : 'lock'}"><span class="ic">${got.includes(a.id) ? a.icon : '🔒'}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div></div>`).join('')}</div>
+    <div class="card-title" style="margin-top:16px">TITLES <span class="ko">획득한 칭호 ${CFG.titles.length} / ${TITLES.length}</span></div>
+    ${CFG.titles.length ? `<div class="title-chips">${CFG.titles.map(t => `<span class="title-chip">${esc(t)}</span>`).join('')}</div>` : '<div class="empty">퇴근에 성공하면 기록에 따라 칭호를 받습니다.</div>'}
+  </section>`;
+}
+
+function statsViewHTML() {
+  return `<div class="tray-grid">
+    <section class="card"><div class="card-title">TODAY <span class="ko">오늘 통계</span></div>${renderStatistics()}</section>
+    <section class="card"><div class="card-title">ALL TIME <span class="ko">누적 · 최고 기록</span></div>${recordTiles()}
+      <div style="margin-top:12px;display:grid;gap:8px">
+        <button class="btn warn small" type="button" id="btnResetRec">🗑 기록 초기화</button>
+        <div class="confirm-row" id="resetConfirm" ${resetConfirmOpen ? '' : 'hidden'}>기록·업적·칭호가 모두 지워집니다.
+          <button class="btn warn small" type="button" id="btnResetYes">초기화</button><button class="btn small" type="button" id="btnResetNo">취소</button></div>
+      </div></section>
+  </div>`;
+}
+
+function renderSettings() { $('#setBody').innerHTML = settingsHTML(); }
+
+function settingsHTML() {
+  const s = CFG.settings, tg = s.toggles;
+  const inGame = S.phase === 'playing' || S.phase === 'paused';
+  const opt = (arr, cur) => arr.map(o => `<option value="${o.id}" ${o.id === cur ? 'selected' : ''}>${o.icon ? o.icon + ' ' : ''}${esc(o.name)}</option>`).join('');
+  const toggles = [['drunk', '🍺 취객 출현'], ['kiosk', '🤖 키오스크 손님'], ['child', '🧒 어린이 손님'], ['group', '👥 단체손님'], ['rare', '✨ 희귀손님'],
+    ['sfx', '🔊 효과음'], ['bgm', '🎵 배경음'], ['shake', '📳 화면 흔들림'], ['auto', '⏩ 자동 진행']];
+  return `<p class="note" id="setNote">${inGame ? '직업·난이도·근무시간은 다음 출근부터 적용됩니다. 나머지는 즉시 적용됩니다.' : '변경 내용은 자동 저장됩니다.'}</p>
+    <div class="set-grid">
+      <div class="field"><label for="setJob">직업</label><select id="setJob">${opt(JOB_TYPES, s.job)}</select></div>
+      <div class="field"><label for="setDiff">난이도</label><select id="setDiff">${opt(DIFFICULTIES, s.diff)}</select></div>
+      <div class="field"><label for="setStart">출근 시각</label><input type="time" id="setStart" value="${esc(s.start)}"></div>
+      <div class="field"><label for="setEnd">퇴근 시각</label><input type="time" id="setEnd" value="${esc(s.end)}"></div>
+      <div class="field"><label for="setFreq">손님 빈도</label><select id="setFreq">${opt(FREQUENCIES, s.freq)}</select></div>
+      <div class="field"><label for="setSpeed">게임 속도</label><select id="setSpeed">${SPEEDS.map(v => `<option value="${v}" ${v === s.speed ? 'selected' : ''}>×${v}</option>`).join('')}</select></div>
+      <div class="field" style="grid-column:1/-1"><label for="setJinsang">진상 확률 <span class="num" id="setJinsangVal">${s.jinsang}</span></label>
+        <input type="range" id="setJinsang" min="0" max="100" step="5" value="${s.jinsang}"></div>
+    </div>
+    <div class="card-title" style="margin-top:16px">OPTIONS <span class="ko">옵션</span></div>
+    <div class="toggles">${toggles.map(([k, l]) => `<label class="tgl" for="tg-${k}"><input type="checkbox" id="tg-${k}" data-toggle="${k}" ${tg[k] ? 'checked' : ''}>${l}</label>`).join('')}</div>`;
+}
+
+/* ---------- 설정 반영 ---------- */
+function applySetting(key, value, fromPanel) {
+  const s = CFG.settings;
+  if (key.startsWith('tg:')) {
+    const k = key.slice(3);
+    s.toggles[k] = value;
+    if (k === 'bgm') { if (value) Sound.startBgm(); else Sound.stopBgm(); }
+    if (k === 'shake') applyAngerFx();
+    if (k === 'sfx' && value) Sound.play('click');
+  } else {
+    s[key] = value;
+  }
+  saveGameData();
+  if (S.phase === 'title') { S = newState(); }
+  renderControls(); updateClock(); renderScene(); renderItems();
+  if (!fromPanel) renderSettings();
+}
+
+/* ---------- 알림 · 효과 ---------- */
+function toast(title, text, type = 'ach') {
+  const box = $('#toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type === 'ach' ? '' : type);
+  t.innerHTML = `<b>${esc(title)}</b>${esc(text || '')}`;
+  box.appendChild(t);
+  while (box.children.length > 4) box.firstChild.remove();
+  setTimeout(() => t.remove(), type === 'ach' ? 4500 : 3200);
+}
+
+function confetti() {
+  const box = $('#confetti');
+  const colors = ['var(--pink)', 'var(--mint)', 'var(--yellow)', 'var(--green)', 'var(--sky)'];
+  let html = '';
+  for (let i = 0; i < 90; i++) {
+    html += `<i style="--x:${rand(0, 100).toFixed(1)}vw;--dx:${rand(-90, 90).toFixed(0)}px;--r:${randInt(90, 720)}deg;--d:${rand(1.6, 3).toFixed(2)}s;--c:${pick(colors)};animation-delay:${rand(0, .6).toFixed(2)}s"></i>`;
+  }
+  box.innerHTML = html;
+  setTimeout(() => { box.innerHTML = ''; }, 4000);
+}
+
+function durText(min) { const m = Math.max(0, Math.round(min)); return `${Math.floor(m / 60)}시간 ${m % 60}분`; }
+
+function renderOverlayWin(main, subs) {
+  const t = S.today, st = S.stats;
+  const tiles = [['근무시간', durText(S.endMin - S.startMin)], ['손님', t.customers + '명'], ['진상', t.jinsang + '명'], ['취객', t.drunk + '명'],
+    ['키오스크 구조', t.kiosk + '회'], ['최고 분노', t.maxAnger + '%'], ['멘탈 잔량', Math.round(st.mental) + '%'], ['참은 말', t.held + '회'], ['퇴근 지연', Math.round(t.overtime) + '분']];
+  showOverlay(`<div class="ov-panel win">
+    <div class="big-emo">🎉</div><h2>퇴근 성공!</h2>
+    <p style="margin:0;color:var(--muted)">${fmtHM(S.endMin)} · ${esc(S.job.name)} · ${esc(S.diff.name)}</p>
+    <div><div style="color:var(--muted);font-size:13px">오늘의 칭호</div><div class="ov-title">「${esc(main.name)}」</div><div style="color:var(--muted);font-size:14px">${esc(main.desc)}</div></div>
+    ${subs.length ? `<div class="title-chips" style="justify-content:center">${subs.map(x => `<span class="title-chip">${esc(x.name)}</span>`).join('')}</div>` : ''}
+    <div class="ov-stats">${tiles.map(([k, v]) => `<div class="stat-tile"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('')}</div>
+    <div class="ov-actions"><button class="btn primary" type="button" data-act="restart">🏃 다시 출근하기</button>
+      <button class="btn" type="button" data-act="settings">⚙️ 설정 바꾸기</button><button class="btn" type="button" data-act="close">📋 기록 보기</button></div>
+  </div>`);
+}
+
+function renderOverlayLose(reason) {
+  const t = S.today;
+  const why = {
+    anger: '분노 게이지 100% — 이성이 먼저 퇴근했습니다.',
+    mental: '멘탈 0 — 영혼이 먼저 퇴근했습니다.',
+    rep: `고객 평판 0 — ${S.job.boss}께서 조기 퇴근을 명하셨습니다.`,
+  }[reason] || '';
+  const tiles = [['버틴 시간', durText(S.min - S.startMin)], ['퇴근까지', durText(S.endMin - S.min)], ['손님', t.customers + '명'],
+    ['진상', t.jinsang + '명'], ['최고 분노', t.maxAnger + '%'], ['참은 말', t.held + '회']];
+  showOverlay(`<div class="ov-panel">
+    <div class="big-emo">💥</div><h2>멘탈이 먼저 퇴근했습니다.</h2>
+    <p style="margin:0;color:var(--pink)">${esc(why)}</p>
+    <div class="ov-stats">${tiles.map(([k, v]) => `<div class="stat-tile"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('')}</div>
+    <p style="margin:0;color:var(--muted)">${esc(pick(RANDOM_MESSAGES))}</p>
+    <div class="ov-actions"><button class="btn primary" type="button" data-act="restart">🏃 다시 출근하기</button>
+      <button class="btn" type="button" data-act="settings">⚙️ 설정 바꾸기</button><button class="btn" type="button" data-act="close">📋 기록 보기</button></div>
+  </div>`);
+}
+
+function showOverlay(html) {
+  const ov = $('#overlay');
+  ov.innerHTML = html;
+  ov.hidden = false;
+  const b = ov.querySelector('[data-act="restart"]');
+  if (b) b.focus();
+}
+
+/* ---------- 개발자 테스트 ---------- */
+function dropCurrent() { S.current = null; S.result = null; if (S.prayState) S.prayState = 0; }
+function devAction(name) {
+  if (S.phase === 'title' || S.phase === 'done' || S.phase === 'over') startGame();
+  if (S.phase === 'paused') pauseGame(false);
+  switch (name) {
+    case 'jinsang': case 'drunk': case 'kiosk': case 'angel':
+      dropCurrent(); spawnCustomer(name); break;
+    case 'rare': {
+      const ids = ['owner_friend', 'internet_expert', 'review_threat', 'phone_orderer'].filter(id => hasScenario(CUSTOMER_MAP[id], S.job));
+      dropCurrent(); spawnCustomer(pick(ids.length ? ids : ['owner_friend'])); break;
+    }
+    case 'event': dropCurrent(); spawnEvent(); break;
+    case 'up': updateAnger(10); updateStats(); checkGameOver(); break;
+    case 'down': updateAnger(-10); updateStats(); break;
+    case 'hell': S.combo = Math.max(S.combo, 4); dropCurrent(); spawnCustomer('jinsang'); break;
+    case 'lastmin':
+      S.min = Math.max(S.min, S.endMin - 1.2); S.nextSpawnAt = S.endMin; S.prayState = 0; S.closingNotified = true;
+      toast('퇴근 1분 전으로 이동', '제발 아무도 들어오지 않기를…', 'info'); break;
+    case 'over': updateAnger(100); checkGameOver(); break;
+    case 'clear': dropCurrent(); S.min = S.endMin; checkWorkComplete(); break;
+  }
+  renderAll();
+}
+
+/* ---------- 이벤트 바인딩 ---------- */
+function bindEvents() {
+  $('#btnStart').addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (S.phase === 'playing' || S.phase === 'paused') {
+      if (b.dataset.confirm !== '1') {
+        b.dataset.confirm = '1'; b.textContent = '정말? 한 번 더 클릭';
+        setTimeout(() => { if (b.dataset.confirm === '1') renderControls(); }, 3000);
+        return;
+      }
+      resetGame(); return;
+    }
+    startGame();
+  });
+  $('#btnPause').addEventListener('click', () => pauseGame());
+  $('#speedGroup').addEventListener('click', e => {
+    const b = e.target.closest('[data-speed]'); if (!b) return;
+    CFG.settings.speed = Number(b.dataset.speed); saveGameData(); renderControls(); renderSettings();
+    if (S.phase === 'title') renderScene();
+  });
+  $('#btnSound').addEventListener('click', () => applySetting('tg:sfx', !CFG.settings.toggles.sfx));
+  $('#mPause').addEventListener('click', () => pauseGame());
+  $('#sidenav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
+
+  $('#sceneCard').addEventListener('click', e => {
+    const c = e.target.closest('.choice');
+    if (c && !c.disabled) { selectChoice(Number(c.dataset.idx)); return; }
+    if (e.target.closest('#btnNext')) { nextFromResult(); return; }
+    if (e.target.closest('#btnCallNext')) { if (S.phase === 'playing') S.nextSpawnAt = S.min; return; }
+    const j = e.target.closest('[data-job]'); if (j) { applySetting('job', j.dataset.job); return; }
+    const d = e.target.closest('[data-diff]'); if (d) { applySetting('diff', d.dataset.diff); return; }
+    const a = e.target.closest('[data-act]'); if (a) { if (a.dataset.act === 'start' || a.dataset.act === 'restart') startGame(); }
+  });
+  const itemClick = e => { const b = e.target.closest('[data-item]'); if (b && !b.disabled) { useItem(b.dataset.item); if (VIEW === 'items') renderTray(); } };
+  $('#itembar').addEventListener('click', itemClick);
+  $('#tray').addEventListener('click', e => {
+    itemClick(e);
+    if (e.target.closest('#btnResetRec')) { resetConfirmOpen = true; $('#resetConfirm').hidden = false; }
+    if (e.target.closest('#btnResetNo')) { resetConfirmOpen = false; $('#resetConfirm').hidden = true; }
+    if (e.target.closest('#btnResetYes')) {
+      resetConfirmOpen = false;
+      const d = defaultData();
+      CFG.records = d.records; CFG.achievements = []; CFG.titles = [];
+      saveGameData(); toast('기록 초기화 완료', '누적 기록·업적·칭호를 모두 지웠습니다.', 'info'); renderTray();
+    }
+  });
+  const onSetting = e => {
+    const t = e.target;
+    if (t.dataset.toggle) { applySetting('tg:' + t.dataset.toggle, t.checked, true); return; }
+    const map = { setJob: 'job', setDiff: 'diff', setStart: 'start', setEnd: 'end', setFreq: 'freq' };
+    if (map[t.id]) { if (t.value) applySetting(map[t.id], t.value, true); return; }
+    if (t.id === 'setSpeed') { applySetting('speed', Number(t.value), true); return; }
+    if (t.id === 'setJinsang') { $('#setJinsangVal').textContent = t.value; applySetting('jinsang', Number(t.value), true); }
+  };
+  $('#setpanel').addEventListener('change', onSetting);
+  $('#setpanel').addEventListener('input', e => { if (e.target.id === 'setJinsang') onSetting(e); });
+
+  $('#overlay').addEventListener('click', e => {
+    const a = e.target.closest('[data-act]'); if (!a) return;
+    const act = a.dataset.act;
+    $('#overlay').hidden = true;
+    if (act === 'restart') startGame();
+    else if (act === 'settings') { resetGame(); openSettings(); }
+    else if (act === 'close') { document.body.classList.remove('frozen'); setView('log'); }
+  });
+  $('#devpanel').addEventListener('click', e => { const b = e.target.closest('[data-dev]'); if (b) devAction(b.dataset.dev); });
+
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input,select,textarea')) return;
+    if (!$('#overlay').hidden) return;
+    if (/^[1-4]$/.test(e.key) && S.current && S.phase === 'playing') { selectChoice(Number(e.key) - 1); e.preventDefault(); }
+    else if (e.key === ' ' && (S.phase === 'playing' || S.phase === 'paused')) { pauseGame(); e.preventDefault(); }
+    else if (e.key === 'Enter') {
+      if (S.result && S.phase === 'playing') { nextFromResult(); e.preventDefault(); }
+      else if (S.phase === 'title' && !e.target.closest('button')) { startGame(); e.preventDefault(); }
+    }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && S.phase === 'playing') pauseGame(true); });
+}
+
+/* 테스트·시연용 핸들 */
+window.__anger = { get S() { return S; }, get CFG() { return CFG; }, stepGame, selectChoice, useItem, spawnCustomer, spawnEvent, startGame, resetGame, devAction, nextFromResult, CUSTOMERS, EVENTS, JOB_TYPES };
+
+initGame();
+</script>
+</body>
+</html>
