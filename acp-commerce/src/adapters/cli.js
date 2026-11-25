@@ -15,6 +15,13 @@ function resolveBin() {
   return existsSync(local) ? local : "acp";
 }
 
+/** 프록시 환경에서 Node 내장 fetch가 HTTPS_PROXY를 따르도록 설정 (Node >= 22.21) */
+export function cliEnv() {
+  const env = { ...process.env };
+  if ((env.HTTPS_PROXY || env.https_proxy) && !env.NODE_USE_ENV_PROXY) env.NODE_USE_ENV_PROXY = "1";
+  return env;
+}
+
 function deepFind(obj, pred, depth = 0) {
   if (!obj || typeof obj !== "object" || depth > 8) return [];
   const out = pred(obj) ? [obj] : [];
@@ -37,7 +44,7 @@ export class CliAdapter {
 
   run(args, { timeoutMs = 120_000 } = {}) {
     return new Promise((resolve, reject) => {
-      execFile(this.bin, [...args, "--json"], { timeout: timeoutMs, maxBuffer: 20 * 1024 * 1024, env: process.env }, (err, stdout, stderr) => {
+      execFile(this.bin, [...args, "--json"], { timeout: timeoutMs, maxBuffer: 20 * 1024 * 1024, env: cliEnv() }, (err, stdout, stderr) => {
         if (err) {
           let detail = stderr?.trim() || err.message;
           try { detail = JSON.parse(stderr.trim().split("\n").pop()).error || detail; } catch { /* plain text */ }
@@ -55,7 +62,7 @@ export class CliAdapter {
   }
 
   async start(onEvent) {
-    this.listener = spawn(this.bin, ["events", "listen", "--output", this.eventsFile, "--json"], { stdio: ["ignore", "ignore", "pipe"], env: process.env });
+    this.listener = spawn(this.bin, ["events", "listen", "--output", this.eventsFile, "--json"], { stdio: ["ignore", "ignore", "pipe"], env: cliEnv() });
     this.listener.stderr.on("data", (d) => this.log(`[acp listen] ${String(d).trim()}`));
     this.listener.on("exit", (code) => { this.log(`[acp listen] exited code=${code}`); this.listenerExited = true; });
     this.stopped = false;

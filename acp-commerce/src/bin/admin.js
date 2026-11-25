@@ -13,6 +13,7 @@ import { loadConfig, ROOT } from "../config.js";
 import { Store } from "../core/store.js";
 import { Guard } from "../core/guard.js";
 import { computeMetrics } from "../core/metrics.js";
+import { cliEnv } from "../adapters/cli.js";
 
 const cfg = loadConfig();
 const store = new Store(cfg.dataDir);
@@ -52,7 +53,7 @@ try {
           console.log(`[dry-run] ${testnet ? "IS_TESTNET=true " : ""}acp ${a.map((x) => (/[\s{"]/.test(x) ? `'${x}'` : x)).join(" ")}\n`);
           continue;
         }
-        console.log(execFileSync(bin, a, { encoding: "utf8", env: process.env }));
+        console.log(execFileSync(bin, a, { encoding: "utf8", env: cliEnv() }));
       }
       if (!apply) console.log("※ 실제 등록: 관리자 승인(register-offerings) 후 --apply. 메인넷은 'mainnet' 승인 추가 필요");
       break;
