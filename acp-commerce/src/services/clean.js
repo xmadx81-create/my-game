@@ -5,6 +5,7 @@ import { loadTable, serialize, isBlank, parseDate, parseNumber, parseBoolean, in
 export const DEFAULT_CLEAN_OPTIONS = {
   trim: true,
   collapseWhitespace: true,
+  normalizeUnicode: true, // NFC 정규화 + 전각 영숫자→반각 + 보이지 않는 문자(제로폭·제어문자) 제거
   normalizeHeaders: "snake", // "snake" | "keep"
   nullValues: ["", "n/a", "na", "null", "none", "-", "nan", "#n/a", "undefined"],
   dropEmptyRows: true,
@@ -37,17 +38,32 @@ function normalizePhone(v) {
   return raw.startsWith("+") ? "+" + d : d;
 }
 
+const INVISIBLE_RE = /[\u200B-\u200D\u2060\uFEFF\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+/** 전각 영숫자·기호(！～)를 반각으로, NFC 정규화(한글 자모 분리 결합), 보이지 않는 문자 제거 */
+export function normalizeUnicodeText(s) {
+  return s
+    .normalize("NFC")
+    .replace(INVISIBLE_RE, "")
+    .replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0));
+}
+
+const MAX_SAMPLES = 20;
+
 const PHONE_HINT = /(phone|tel|mobile|cell|전화|연락처|휴대폰)/i;
 const EMAIL_HINT = /(email|e_mail|mail|이메일)/i;
-const DATE_HINT = /(date|day|_at$|_on$|time|dt$|일자|날짜|일시)/i;
+const DATE_HINT = /(date|day|_at$|_on$|time|dt$|join|signup|created|updated|birth|dob|expir|일자|날짜|일시|생년|가입|등록|만료)/i;
 
 export function runClean(req, limits) {
   const opts = mergeOptions(req.options);
   const table = loadTable(req.data, req.format, limits);
   const outputFormat = req.outputFormat || table.format;
-  if (!FORMATS.includes(outputFormat)) throw new ServiceError("BAD_FORMAT", `지원하지 않는 출력 형식: ${outputFormat}`);
+  if (!FORMATS.includes(outputFormat)) throw new ServiceError("BAD_FORMAT", `Unsupported outputFormat: ${outputFormat}`);
 
-  const stats = { rowsIn: table.records.length, cellsTrimmed: 0, nullsStandardized: 0, datesStandardized: 0, numbersStandardized: 0, emailsLowercased: 0, invalidEmails: 0, invalidDates: 0, phonesStandardized: 0, booleansStandardized: 0, emptyRowsDropped: 0, duplicatesDropped: 0, emptyColumnsDropped: 0, headersRenamed: 0 };
+  const stats = { rowsIn: table.records.length, cellsTrimmed: 0, nullsStandardized: 0, datesStandardized: 0, numbersStandardized: 0, emailsLowercased: 0, invalidEmails: 0, invalidDates: 0, phonesStandardized: 0, booleansStandardized: 0, emptyRowsDropped: 0, duplicatesDropped: 0, emptyColumnsDropped: 0, headersRenamed: 0, unicodeNormalized: 0 };
+  const changeSamples = []; // 변경 전후 예시 (구매자 검증용)
+  const issues = []; // 자동 보정하지 않은 문제값 (임의 수정 금지 원칙)
+  const sample = (row, column, before, after, rule) => { if (changeSamples.length < MAX_SAMPLES && before !== after) changeSamples.push({ row, column, before, after, rule }); };
+  const issue = (row, column, value, problem) => { if (issues.length < MAX_SAMPLES) issues.push({ row, column, value, problem }); };
   const nullSet = new Set(opts.nullValues.map((v) => String(v).toLowerCase()));
 
   // 1) 헤더 정리
@@ -64,12 +80,17 @@ export function runClean(req, limits) {
   let columns = table.columns.map((c) => headerMap.get(c));
 
   // 2) 셀 단위 정리
-  let records = table.records.map((r) => {
-    const o = {};
+  let records = table.records.map((r, idx) => {
+    const o = { __row: idx + 1 };
     for (const c of table.columns) {
       let v = r[c];
       if (typeof v === "string") {
         let nv = v;
+        if (opts.normalizeUnicode) {
+          const u = normalizeUnicodeText(nv);
+          if (u !== nv) (stats.unicodeNormalized++, sample(idx + 1, headerMap.get(c), nv, u, "unicode"));
+          nv = u;
+        }
         if (opts.trim) nv = nv.trim();
         if (opts.collapseWhitespace) nv = nv.replace(/[ \t 　]+/g, " ");
         if (nv !== v) stats.cellsTrimmed++;
@@ -105,22 +126,24 @@ export function runClean(req, limits) {
       if (isBlank(v)) continue;
       if (type === "date" && s.dates) {
         const d = parseDate(v);
-        if (d && d !== v) (r[col] = d), stats.datesStandardized++;
-        else if (!d) stats.invalidDates++; // 원본 유지 + 건수 보고 (임의 보정 금지)
+        if (d && d !== v) (r[col] = d), stats.datesStandardized++, sample(r.__row, col, v, d, "date");
+        else if (!d) stats.invalidDates++, issue(r.__row, col, v, "invalid or ambiguous date (kept as-is)"); // 원본 유지 + 건수 보고 (임의 보정 금지)
       } else if ((type === "number" || type === "integer") && s.numbers && typeof v === "string") {
         const n = parseNumber(v);
-        if (n !== null) (r[col] = n), stats.numbersStandardized++;
+        if (n !== null) (r[col] = n), stats.numbersStandardized++, sample(r.__row, col, v, n, "number");
+        else issue(r.__row, col, v, "non-numeric value in numeric column (kept as-is)");
       } else if (type === "email" && s.emails) {
         const e = String(v).trim().toLowerCase();
-        if (e !== v) stats.emailsLowercased++;
+        if (e !== v) stats.emailsLowercased++, sample(r.__row, col, v, e, "email");
         r[col] = e;
-        if (!EMAIL_RE.test(e)) stats.invalidEmails++;
+        if (!EMAIL_RE.test(e)) stats.invalidEmails++, issue(r.__row, col, e, "invalid email format");
       } else if (type === "phone" && s.phones) {
         const p = normalizePhone(v);
-        if (p && p !== v) (r[col] = p), stats.phonesStandardized++;
+        if (p && p !== v) (r[col] = p), stats.phonesStandardized++, sample(r.__row, col, v, p, "phone");
+        else if (!p) issue(r.__row, col, v, "unrecognized phone number (kept as-is)");
       } else if (type === "boolean" && s.booleans && typeof v !== "boolean") {
         const b = parseBoolean(v);
-        if (b !== null) (r[col] = b), stats.booleansStandardized++;
+        if (b !== null) (r[col] = b), stats.booleansStandardized++, sample(r.__row, col, v, b, "boolean");
       }
     }
   }
@@ -143,7 +166,7 @@ export function runClean(req, limits) {
   if (opts.dedupe) {
     const keys = opts.dedupeKeys?.length ? opts.dedupeKeys.map((k) => (headerMap.get(k) ?? (opts.normalizeHeaders === "snake" ? toSnake(k) : k))) : columns;
     const missing = keys.filter((k) => !columns.includes(k));
-    if (missing.length) throw new ServiceError("BAD_OPTION", `dedupeKeys에 없는 열: ${missing.join(", ")}`);
+    if (missing.length) throw new ServiceError("BAD_OPTION", `dedupeKeys refers to unknown column(s): ${missing.join(", ")}`);
     const seen = new Set();
     const before = records.length;
     records = records.filter((r) => {
@@ -157,10 +180,18 @@ export function runClean(req, limits) {
 
   stats.rowsOut = records.length;
   const output = serialize(columns, records, outputFormat);
+  const notes = [
+    `Cleaned ${stats.rowsIn} rows into ${stats.rowsOut} rows (${stats.duplicatesDropped} duplicates and ${stats.emptyRowsDropped} empty rows removed).`,
+    `Standardized: ${stats.datesStandardized} dates (YYYY-MM-DD), ${stats.numbersStandardized} numbers, ${stats.phonesStandardized} phones, ${stats.booleansStandardized} booleans, ${stats.emailsLowercased} emails, ${stats.unicodeNormalized} unicode fixes.`,
+    issues.length ? `${stats.invalidDates + stats.invalidEmails} suspicious values were kept unchanged and listed in "issues" for your review.` : "No suspicious values detected.",
+  ];
   return {
+    notes,
     summary: stats,
     columns,
     columnTypes,
+    changeSamples,
+    issues,
     output: { format: outputFormat, rows: records.length, data: output },
   };
 }

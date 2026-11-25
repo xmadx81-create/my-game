@@ -2,55 +2,138 @@
   {
     "service": "data-clean",
     "name": "Data Cleaning",
-    "description": "Deterministic cleanup of CSV/TSV/JSON/JSONL tables: trims whitespace, snake_case headers, standardizes nulls, dates (YYYY-MM-DD), numbers, emails, phone numbers and booleans, drops empty rows and duplicates. Returns cleaned data + change summary + self-QA report + sha256. Max 1MB / 20,000 rows per job.",
-    "priceUsdc": 0.30,
+    "description": "Deterministic cleanup of CSV/TSV/JSON/JSONL tables (no LLM, same input = same output). Fixes unicode (NFC, full-width chars, invisible zero-width chars), whitespace, snake_case headers, nulls, dates (YYYY-MM-DD), numbers ($1,200 -> 1200), emails, phone numbers (KR/intl) and booleans; removes empty rows and duplicates. Never guesses: suspicious values are kept and listed in 'issues'. Returns cleaned data + before/after samples + change summary + self-QA + sha256. Max 1MB / 20,000 rows.",
+    "priceUsdc": 0.3,
     "slaMinutes": 10,
     "requirements": {
       "type": "object",
       "properties": {
-        "data": { "description": "CSV/TSV/JSON/JSONL text, or an array of objects", "type": ["string", "array"] },
-        "format": { "type": "string", "enum": ["auto", "csv", "tsv", "json", "jsonl"] },
-        "outputFormat": { "type": "string", "enum": ["csv", "tsv", "json", "jsonl"] },
-        "options": { "type": "object" }
+        "data": {
+          "description": "CSV/TSV/JSON/JSONL text, or an array of objects",
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "csv",
+            "tsv",
+            "json",
+            "jsonl"
+          ]
+        },
+        "outputFormat": {
+          "type": "string",
+          "enum": [
+            "csv",
+            "tsv",
+            "json",
+            "jsonl"
+          ]
+        },
+        "options": {
+          "type": "object"
+        }
       },
-      "required": ["data"]
+      "required": [
+        "data"
+      ]
     },
-    "deliverable": "JSON: {summary, columns, columnTypes, output:{format,rows,data}, qa, sha256}"
+    "deliverable": "JSON: {notes, summary, columns, columnTypes, changeSamples, issues, output:{format,rows,data}, qa, sha256}"
   },
   {
     "service": "data-transform",
     "name": "Data Transform",
-    "description": "Convert between CSV/TSV/JSON/JSONL and apply a pipeline of operations: rename, select, drop, cast, flatten nested JSON, filter, sort, concat, split, fill, limit. Deterministic, no LLM. Max 1MB / 20,000 rows per job.",
+    "description": "Convert between CSV/TSV/JSON/JSONL and apply a pipeline of operations: rename, select, drop, cast, flatten nested JSON, filter, sort, concat, split, fill, limit. Deterministic (no LLM), with an operations log, self-QA and sha256 so you can verify the output. Max 1MB / 20,000 rows.",
     "priceUsdc": 0.25,
     "slaMinutes": 10,
     "requirements": {
       "type": "object",
       "properties": {
-        "data": { "type": ["string", "array"] },
-        "format": { "type": "string", "enum": ["auto", "csv", "tsv", "json", "jsonl"] },
-        "outputFormat": { "type": "string", "enum": ["csv", "tsv", "json", "jsonl"] },
-        "operations": { "type": "array", "maxItems": 50, "items": { "type": "object", "required": ["op"] } }
+        "data": {
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "csv",
+            "tsv",
+            "json",
+            "jsonl"
+          ]
+        },
+        "outputFormat": {
+          "type": "string",
+          "enum": [
+            "csv",
+            "tsv",
+            "json",
+            "jsonl"
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": [
+              "op"
+            ]
+          }
+        }
       },
-      "required": ["data", "outputFormat"]
+      "required": [
+        "data",
+        "outputFormat"
+      ]
     },
     "deliverable": "JSON: {summary, operationsLog, columns, output:{format,rows,data}, qa, sha256}"
   },
   {
     "service": "data-validate",
     "name": "Data Validation",
-    "description": "Data quality audit: validates rows against a column schema (type, required, unique, min/max, length, regex pattern, enum, composite keys) or auto-profiles when no schema is given. Returns quality score 0-100, error list with row numbers, per-column profile. Max 1MB / 20,000 rows per job.",
-    "priceUsdc": 0.20,
+    "description": "Data quality audit: validates rows against a column schema (type, required, unique, min/max, length, regex, enum, composite keys) or auto-profiles when no schema is given. Returns quality score 0-100, row-level errors with safe auto-fix suggestions, errors by column, actionable recommendations and a per-column profile, plus self-QA and sha256. Max 1MB / 20,000 rows.",
+    "priceUsdc": 0.2,
     "slaMinutes": 10,
     "requirements": {
       "type": "object",
       "properties": {
-        "data": { "type": ["string", "array"] },
-        "format": { "type": "string", "enum": ["auto", "csv", "tsv", "json", "jsonl"] },
-        "schema": { "type": "object" },
-        "maxErrors": { "type": "integer", "minimum": 1, "maximum": 1000 }
+        "data": {
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "csv",
+            "tsv",
+            "json",
+            "jsonl"
+          ]
+        },
+        "schema": {
+          "type": "object"
+        },
+        "maxErrors": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
       },
-      "required": ["data"]
+      "required": [
+        "data"
+      ]
     },
-    "deliverable": "JSON: {summary:{valid,qualityScore,errorCount,...}, errorsByRule, errors[], profile, qa, sha256}"
+    "deliverable": "JSON: {notes, recommendations, summary:{valid,qualityScore,errorCount,rowsWithErrors,...}, errorsByRule, errorsByColumn, errors[] (with suggestion), profile, qa, sha256}"
   }
 ]

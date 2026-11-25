@@ -46,7 +46,7 @@ export function parseDelimited(text, delimiter = ",") {
       cell = "";
     } else cell += ch;
   }
-  if (inQuotes) throw new ServiceError("PARSE_ERROR", "닫히지 않은 따옴표가 있습니다 (CSV 형식 오류)");
+  if (inQuotes) throw new ServiceError("PARSE_ERROR", "Malformed CSV: unclosed quote");
   if (cell !== "" || row.length > 0) {
     row.push(cell);
     rows.push(row);
@@ -127,25 +127,25 @@ function columnsFromRecords(records) {
  */
 export function loadTable(data, format = "auto", limits = {}) {
   const { maxInputBytes = 1_000_000, maxRows = 20_000 } = limits;
-  if (data === undefined || data === null) throw new ServiceError("MISSING_DATA", "data 필드가 비어 있습니다");
+  if (data === undefined || data === null) throw new ServiceError("MISSING_DATA", "Missing required field: data");
   let fmt = format || "auto";
   let columns;
   let records;
   if (Array.isArray(data)) {
     const size = Buffer.byteLength(JSON.stringify(data));
-    if (size > maxInputBytes) throw new ServiceError("TOO_LARGE", `입력 크기 ${size}B가 한도 ${maxInputBytes}B를 초과합니다`);
+    if (size > maxInputBytes) throw new ServiceError("TOO_LARGE", `Input size ${size}B exceeds the limit of ${maxInputBytes}B`);
     records = data.map((r, i) => {
       if (r === null || typeof r !== "object" || Array.isArray(r))
-        throw new ServiceError("BAD_RECORD", `${i + 1}번째 항목이 객체가 아닙니다`);
+        throw new ServiceError("BAD_RECORD", `Item ${i + 1} is not an object`);
       return { ...r };
     });
     columns = columnsFromRecords(records);
     fmt = "json";
   } else if (typeof data === "string") {
     const size = Buffer.byteLength(data);
-    if (size > maxInputBytes) throw new ServiceError("TOO_LARGE", `입력 크기 ${size}B가 한도 ${maxInputBytes}B를 초과합니다`);
+    if (size > maxInputBytes) throw new ServiceError("TOO_LARGE", `Input size ${size}B exceeds the limit of ${maxInputBytes}B`);
     if (fmt === "auto") fmt = detectFormat(data);
-    if (!FORMATS.includes(fmt)) throw new ServiceError("BAD_FORMAT", `지원하지 않는 형식: ${fmt}`);
+    if (!FORMATS.includes(fmt)) throw new ServiceError("BAD_FORMAT", `Unsupported format: ${fmt}`);
     if (fmt === "csv" || fmt === "tsv") {
       ({ columns, records } = parseDelimited(data, fmt === "tsv" ? "\t" : ","));
     } else if (fmt === "json") {
@@ -153,7 +153,7 @@ export function loadTable(data, format = "auto", limits = {}) {
       try {
         parsed = JSON.parse(data);
       } catch (e) {
-        throw new ServiceError("PARSE_ERROR", `JSON 파싱 실패: ${e.message}`);
+        throw new ServiceError("PARSE_ERROR", `Invalid JSON: ${e.message}`);
       }
       if (!Array.isArray(parsed)) parsed = [parsed];
       return loadTable(parsed, "json", limits);
@@ -163,18 +163,18 @@ export function loadTable(data, format = "auto", limits = {}) {
         if (!line.trim()) return;
         try {
           const obj = JSON.parse(line);
-          if (obj === null || typeof obj !== "object" || Array.isArray(obj)) throw new Error("객체가 아님");
+          if (obj === null || typeof obj !== "object" || Array.isArray(obj)) throw new Error("not an object");
           records.push(obj);
         } catch (e) {
-          throw new ServiceError("PARSE_ERROR", `JSONL ${i + 1}행 파싱 실패: ${e.message}`);
+          throw new ServiceError("PARSE_ERROR", `Invalid JSONL at line ${i + 1}: ${e.message}`);
         }
       });
       columns = columnsFromRecords(records);
     }
   } else {
-    throw new ServiceError("BAD_DATA", "data는 문자열 또는 객체 배열이어야 합니다");
+    throw new ServiceError("BAD_DATA", "data must be a string (CSV/TSV/JSON/JSONL) or an array of objects");
   }
-  if (records.length > maxRows) throw new ServiceError("TOO_MANY_ROWS", `행 수 ${records.length}가 한도 ${maxRows}를 초과합니다`);
+  if (records.length > maxRows) throw new ServiceError("TOO_MANY_ROWS", `Row count ${records.length} exceeds the limit of ${maxRows}`);
   return { columns, records, format: fmt };
 }
 
@@ -189,7 +189,7 @@ export function serialize(columns, records, format) {
     case "jsonl":
       return records.map((r) => JSON.stringify(pick(r, columns))).join("\n") + (records.length ? "\n" : "");
     default:
-      throw new ServiceError("BAD_FORMAT", `지원하지 않는 출력 형식: ${format}`);
+      throw new ServiceError("BAD_FORMAT", `Unsupported output format: ${format}`);
   }
 }
 

@@ -6,6 +6,7 @@
 //   node src/bin/admin.js offerings                         등록 명령 미리보기(dry-run)
 //   node src/bin/admin.js offerings --apply [--only data-validate]  실제 등록 ('register-offerings' 승인 필요)
 //   node src/bin/admin.js metrics                           관제 지표 JSON 출력
+//   node src/bin/admin.js pricing [--apply]                 경쟁 가격 조사·제안 (적용은 'price-change' 승인 필요)
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -14,6 +15,8 @@ import { Store } from "../core/store.js";
 import { Guard } from "../core/guard.js";
 import { computeMetrics } from "../core/metrics.js";
 import { cliEnv } from "../adapters/cli.js";
+import { findComparable, proposePrice } from "../core/pricing.js";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const cfg = loadConfig();
 const store = new Store(cfg.dataDir);
@@ -61,8 +64,39 @@ try {
       if (!apply) console.log("※ 실제 등록: 관리자 승인(register-offerings) 후 --apply. 메인넷은 'mainnet' 승인 추가 필요");
       break;
     }
+    case "pricing": {
+      const apply = process.argv.includes("--apply");
+      const bin = process.env.ACP_BIN || (existsSync(join(ROOT, "node_modules/.bin/acp")) ? join(ROOT, "node_modules/.bin/acp") : "acp");
+      const acp = (args) => JSON.parse(execFileSync(bin, [...args, "--json"], { encoding: "utf8", env: cliEnv(), stdio: ["ignore", "pipe", "pipe"] }).trim().split("\n").pop());
+      const me = (() => { try { return acp(["wallet", "address"]).address; } catch { return null; } })();
+      const pc = cfg.policy.pricing;
+      const rows = [];
+      for (const o of cfg.offerings) {
+        const agents = [];
+        for (const q of pc.searchQueries[o.service] || []) {
+          try { agents.push(...(acp(["browse", q, "--top-k", "25"]).data || [])); } catch (e) { console.error(`[browse "${q}"] ${e.message.split("\n")[0]}`); }
+        }
+        const uniq = [...new Map(agents.map((a) => [a.walletAddress, a])).values()];
+        const comparable = findComparable(uniq, o.service, { excludeWallets: me ? [me] : [] });
+        const p = proposePrice({ currentUsdc: o.priceUsdc, comparable, undercutRate: pc.undercutRate, floorUsdc: pc.floorUsdc });
+        rows.push({ service: o.service, current: o.priceUsdc, proposed: p.priceUsdc, competitors: comparable.length, lowest: p.lowestCompetitorUsdc ?? "-", reason: p.reason });
+        if (apply && p.changed) {
+          guard.require("price-change");
+          const live = acp(["offering", "list"]);
+          const target = (Array.isArray(live) ? live : live.data || []).find((x) => x.name === o.name);
+          if (target) acp(["offering", "update", "--offering-id", target.id, "--price-value", p.priceUsdc.toFixed(2)]);
+          o.priceUsdc = p.priceUsdc;
+        }
+      }
+      console.table(rows);
+      if (apply) {
+        writeFileSync(join(ROOT, "config", "offerings.json"), JSON.stringify(cfg.offerings, null, 2) + "\n");
+        store.addSignal({ kind: "pricing_run", detail: JSON.stringify(rows.map((r) => [r.service, r.current, r.proposed])) });
+      } else console.log("※ 적용: 'price-change' 승인 후 --apply");
+      break;
+    }
     default:
-      console.log("사용법: approvals | approve <action> --by <이름> | revoke <action> | offerings [--apply] | metrics");
+      console.log("사용법: approvals | approve <action> --by <이름> | revoke <action> | offerings [--apply] [--only <service>] | pricing [--apply] | metrics");
   }
 } catch (e) {
   console.error(e.message);

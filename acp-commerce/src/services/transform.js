@@ -37,7 +37,7 @@ function castValue(v, type) {
       return d === null ? { ok: false } : { ok: true, value: d };
     }
     default:
-      throw new ServiceError("BAD_OPERATION", `지원하지 않는 cast 타입: ${type}`);
+      throw new ServiceError("BAD_OPERATION", `Unsupported cast type: ${type}`);
   }
 }
 
@@ -63,22 +63,22 @@ function matches(v, operator, target) {
     case "in": return Array.isArray(target) && target.map(String).includes(String(v ?? ""));
     case "empty": return isBlank(v);
     case "notEmpty": return !isBlank(v);
-    default: throw new ServiceError("BAD_OPERATION", `지원하지 않는 filter 연산자: ${operator}`);
+    default: throw new ServiceError("BAD_OPERATION", `Unsupported filter operator: ${operator}`);
   }
 }
 
 function requireColumns(columns, list, op) {
   const missing = list.filter((c) => !columns.includes(c));
-  if (missing.length) throw new ServiceError("BAD_OPERATION", `${op}: 존재하지 않는 열 ${missing.join(", ")}`);
+  if (missing.length) throw new ServiceError("BAD_OPERATION", `${op}: unknown column(s) ${missing.join(", ")}`);
 }
 
 export function runTransform(req, limits) {
   const table = loadTable(req.data, req.format, limits);
   const outputFormat = req.outputFormat || (table.format === "json" ? "csv" : "json");
-  if (!FORMATS.includes(outputFormat)) throw new ServiceError("BAD_FORMAT", `지원하지 않는 출력 형식: ${outputFormat}`);
+  if (!FORMATS.includes(outputFormat)) throw new ServiceError("BAD_FORMAT", `Unsupported outputFormat: ${outputFormat}`);
   const ops = req.operations ?? [];
-  if (!Array.isArray(ops)) throw new ServiceError("BAD_OPERATION", "operations는 배열이어야 합니다");
-  if (ops.length > MAX_OPS) throw new ServiceError("BAD_OPERATION", `연산은 최대 ${MAX_OPS}개입니다`);
+  if (!Array.isArray(ops)) throw new ServiceError("BAD_OPERATION", "operations must be an array");
+  if (ops.length > MAX_OPS) throw new ServiceError("BAD_OPERATION", `At most ${MAX_OPS} operations are allowed`);
 
   let { columns, records } = table;
   records = records.map((r) => ({ ...r }));
@@ -90,7 +90,7 @@ export function runTransform(req, limits) {
   const pipeline = autoFlatten ? [{ op: "flatten", separator: ".", auto: true }, ...ops] : ops;
 
   for (const [i, o] of pipeline.entries()) {
-    if (!o || !OPERATIONS.includes(o.op)) throw new ServiceError("BAD_OPERATION", `${i + 1}번째 연산이 올바르지 않습니다: ${o?.op}`);
+    if (!o || !OPERATIONS.includes(o.op)) throw new ServiceError("BAD_OPERATION", `Invalid operation #${i + 1}: ${o?.op}`);
     const before = records.length;
     switch (o.op) {
       case "rename": {
@@ -119,7 +119,7 @@ export function runTransform(req, limits) {
             if (res.ok) r[col] = res.value;
             else {
               failed++;
-              if (onError === "fail") throw new ServiceError("CAST_FAILED", `열 ${col} 값 "${r[col]}"을(를) ${t}로 변환할 수 없습니다`);
+              if (onError === "fail") throw new ServiceError("CAST_FAILED", `Cannot cast value "${r[col]}" in column ${col} to ${t}`);
               if (onError === "null") r[col] = null;
             }
           }
@@ -150,14 +150,14 @@ export function runTransform(req, limits) {
       }
       case "concat": {
         requireColumns(columns, o.columns || [], "concat");
-        if (!o.into) throw new ServiceError("BAD_OPERATION", "concat: into 필요");
+        if (!o.into) throw new ServiceError("BAD_OPERATION", "concat: \"into\" is required");
         for (const r of records) r[o.into] = o.columns.map((c) => r[c]).filter((v) => !isBlank(v)).join(o.separator ?? " ");
         if (!columns.includes(o.into)) columns.push(o.into);
         break;
       }
       case "split": {
         requireColumns(columns, [o.column], "split");
-        if (!Array.isArray(o.into) || !o.into.length) throw new ServiceError("BAD_OPERATION", "split: into 배열 필요");
+        if (!Array.isArray(o.into) || !o.into.length) throw new ServiceError("BAD_OPERATION", "split: \"into\" must be a non-empty array");
         const sep = o.separator ?? " ";
         for (const r of records) {
           const parts = isBlank(r[o.column]) ? [] : String(r[o.column]).split(sep);

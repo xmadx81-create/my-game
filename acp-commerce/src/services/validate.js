@@ -13,15 +13,38 @@ function checkType(v, type) {
     case "date": return parseDate(v) !== null;
     case "email": return EMAIL_RE.test(String(v).trim());
     case "url": return URL_RE.test(String(v).trim());
-    default: throw new ServiceError("BAD_SCHEMA", `지원하지 않는 타입: ${type}`);
+    default: throw new ServiceError("BAD_SCHEMA", `Unsupported type: ${type}`);
   }
 }
 
 function safeRegex(pattern) {
-  if (typeof pattern !== "string" || pattern.length > 200) throw new ServiceError("BAD_SCHEMA", "pattern은 200자 이하 문자열이어야 합니다");
+  if (typeof pattern !== "string" || pattern.length > 200) throw new ServiceError("BAD_SCHEMA", "pattern must be a string of at most 200 characters");
   // ReDoS 방지: 중첩 수량자 차단
-  if (/\([^)]*[+*][^)]*\)[+*{]/.test(pattern)) throw new ServiceError("BAD_SCHEMA", "중첩 반복 패턴은 허용되지 않습니다");
-  try { return new RegExp(pattern); } catch (e) { throw new ServiceError("BAD_SCHEMA", `잘못된 정규식: ${e.message}`); }
+  if (/\([^)]*[+*][^)]*\)[+*{]/.test(pattern)) throw new ServiceError("BAD_SCHEMA", "Nested quantifiers are not allowed (ReDoS protection)");
+  try { return new RegExp(pattern); } catch (e) { throw new ServiceError("BAD_SCHEMA", `Invalid regex: ${e.message}`); }
+}
+
+/** 오류값에 대한 수정 제안 (확실한 경우에만; 추측성 보정 금지) */
+export function suggestFix(rule, value, def = {}) {
+  if (value === null || value === undefined) return null;
+  const v = String(value);
+  const t = v.trim();
+  if (rule === "type") {
+    if (def.type === "email") { const e = t.toLowerCase().replace(/\s+/g, ""); return EMAIL_RE.test(e) && e !== v ? e : null; }
+    if (def.type === "date") return null; // 날짜는 임의 보정하지 않음 (존재하지 않는 날짜 등)
+    if (def.type === "number" || def.type === "integer") { const n = parseNumber(t.replace(/\s+/g, "")); return n !== null && (def.type === "number" || Number.isInteger(n)) ? n : null; }
+    if (def.type === "boolean") { const b = parseBoolean(t); return b; }
+    if (def.type === "url" && /^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(t)) return "https://" + t;
+  }
+  if (rule === "enum" && Array.isArray(def.enum)) {
+    const hit = def.enum.find((e) => String(e).toLowerCase() === t.toLowerCase());
+    return hit !== undefined ? hit : null;
+  }
+  if ((rule === "minLength" || rule === "maxLength" || rule === "pattern") && t !== v) {
+    // 앞뒤 공백 때문에 실패한 경우만 제안
+    return t;
+  }
+  return null;
 }
 
 export function profileColumns(columns, records) {
@@ -58,10 +81,17 @@ export function runValidate(req, limits) {
   const errors = [];
   const byRule = {};
   let errorCount = 0;
-  const add = (row, column, rule, value, message) => {
+  const errorRows = new Set();
+  const byColumn = {};
+  let suggestedCount = 0;
+  const add = (row, column, rule, value, message, def) => {
     errorCount++;
     byRule[rule] = (byRule[rule] || 0) + 1;
-    if (errors.length < maxErrors) errors.push({ row, column, rule, value: value === undefined ? null : value, message });
+    if (row !== null) errorRows.add(row);
+    if (column) byColumn[column] = (byColumn[column] || 0) + 1;
+    const suggestion = def ? suggestFix(rule, value, def) : null;
+    if (suggestion !== null && suggestion !== undefined) suggestedCount++;
+    if (errors.length < maxErrors) errors.push({ row, column, rule, value: value === undefined ? null : value, message, ...(suggestion !== null && suggestion !== undefined ? { suggestion } : {}) });
   };
 
   const profile = profileColumns(columns, records);
@@ -69,11 +99,11 @@ export function runValidate(req, limits) {
 
   if (schema) {
     const colDefs = schema.columns || {};
-    if (typeof colDefs !== "object" || Array.isArray(colDefs)) throw new ServiceError("BAD_SCHEMA", "schema.columns는 객체여야 합니다");
+    if (typeof colDefs !== "object" || Array.isArray(colDefs)) throw new ServiceError("BAD_SCHEMA", "schema.columns must be an object");
     for (const [col, def] of Object.entries(colDefs)) {
-      if (def.type && !TYPES.includes(def.type)) throw new ServiceError("BAD_SCHEMA", `${col}: 지원하지 않는 타입 ${def.type}`);
+      if (def.type && !TYPES.includes(def.type)) throw new ServiceError("BAD_SCHEMA", `${col}: unsupported type ${def.type}`);
       if (!columns.includes(col)) {
-        if (def.required) add(null, col, "missing_column", null, `필수 열 "${col}"이 없습니다`);
+        if (def.required) add(null, col, "missing_column", null, `Required column "${col}" is missing`);
         continue;
       }
       const re = def.pattern ? safeRegex(def.pattern) : null;
@@ -83,39 +113,39 @@ export function runValidate(req, limits) {
         const v = r[col];
         checkedRules++;
         if (isBlank(v)) {
-          if (def.required) add(rowNo, col, "required", v, "필수 값이 비어 있습니다");
+          if (def.required) add(rowNo, col, "required", v, "Required value is empty", def);
           return;
         }
-        if (def.type && !checkType(v, def.type)) { add(rowNo, col, "type", v, `${def.type} 형식이 아닙니다`); return; }
+        if (def.type && !checkType(v, def.type)) { add(rowNo, col, "type", v, `Not a valid ${def.type}`, def); return; }
         const n = def.type === "number" || def.type === "integer" ? parseNumber(v) : null;
-        if (def.min !== undefined && n !== null && n < def.min) add(rowNo, col, "min", v, `최솟값 ${def.min} 미만`);
-        if (def.max !== undefined && n !== null && n > def.max) add(rowNo, col, "max", v, `최댓값 ${def.max} 초과`);
+        if (def.min !== undefined && n !== null && n < def.min) add(rowNo, col, "min", v, `Below minimum ${def.min}`, def);
+        if (def.max !== undefined && n !== null && n > def.max) add(rowNo, col, "max", v, `Above maximum ${def.max}`, def);
         if (def.type === "date") {
           const d = parseDate(v);
-          if (def.min && d < parseDate(def.min)) add(rowNo, col, "min", v, `${def.min} 이전 날짜`);
-          if (def.max && d > parseDate(def.max)) add(rowNo, col, "max", v, `${def.max} 이후 날짜`);
+          if (def.min && d < parseDate(def.min)) add(rowNo, col, "min", v, `Date before ${def.min}`, def);
+          if (def.max && d > parseDate(def.max)) add(rowNo, col, "max", v, `Date after ${def.max}`, def);
         }
         const s = String(v);
-        if (def.minLength !== undefined && s.length < def.minLength) add(rowNo, col, "minLength", v, `길이 ${def.minLength} 미만`);
-        if (def.maxLength !== undefined && s.length > def.maxLength) add(rowNo, col, "maxLength", v, `길이 ${def.maxLength} 초과`);
-        if (re && !re.test(s)) add(rowNo, col, "pattern", v, `패턴 불일치: ${def.pattern}`);
-        if (Array.isArray(def.enum) && !def.enum.map(String).includes(s)) add(rowNo, col, "enum", v, `허용값 아님: ${def.enum.join(", ")}`);
+        if (def.minLength !== undefined && s.length < def.minLength) add(rowNo, col, "minLength", v, `Shorter than ${def.minLength}`, def);
+        if (def.maxLength !== undefined && s.length > def.maxLength) add(rowNo, col, "maxLength", v, `Longer than ${def.maxLength}`, def);
+        if (re && !re.test(s)) add(rowNo, col, "pattern", v, `Does not match pattern ${def.pattern}`, def);
+        if (Array.isArray(def.enum) && !def.enum.map(String).includes(s)) add(rowNo, col, "enum", v, `Not one of: ${def.enum.join(", ")}`, def);
         if (def.unique) {
           const key = s.toLowerCase();
-          if (seen.has(key)) add(rowNo, col, "unique", v, `${seen.get(key)}행과 중복`);
+          if (seen.has(key)) add(rowNo, col, "unique", v, `Duplicate of row ${seen.get(key)}`, def);
           else seen.set(key, rowNo);
         }
       });
     }
     if (schema.allowExtraColumns === false) {
-      for (const c of columns) if (!(c in colDefs)) add(null, c, "extra_column", null, `스키마에 없는 열 "${c}"`);
+      for (const c of columns) if (!(c in colDefs)) add(null, c, "extra_column", null, `Column "${c}" is not in the schema`);
     }
     if (Array.isArray(schema.uniqueTogether) && schema.uniqueTogether.length) {
       const keys = schema.uniqueTogether;
       const seen = new Map();
       records.forEach((r, idx) => {
         const k = JSON.stringify(keys.map((c) => String(r[c] ?? "").toLowerCase()));
-        if (seen.has(k)) add(idx + 1, keys.join("+"), "unique_together", null, `${seen.get(k)}행과 복합키 중복`);
+        if (seen.has(k)) add(idx + 1, keys.join("+"), "unique_together", null, `Composite key duplicates row ${seen.get(k)}`);
         else seen.set(k, idx + 1);
       });
     }
@@ -125,9 +155,9 @@ export function runValidate(req, limits) {
     records.forEach((r, idx) => {
       const rowNo = idx + 1;
       const values = columns.map((c) => r[c]);
-      if (values.every(isBlank)) add(rowNo, null, "empty_row", null, "빈 행");
+      if (values.every(isBlank)) add(rowNo, null, "empty_row", null, "Empty row");
       const key = JSON.stringify(values);
-      if (seen.has(key)) add(rowNo, null, "duplicate_row", null, `${seen.get(key)}행과 완전 중복`);
+      if (seen.has(key)) add(rowNo, null, "duplicate_row", null, `Exact duplicate of row ${seen.get(key)}`);
       else seen.set(key, rowNo);
     });
     for (const c of columns) {
@@ -136,7 +166,7 @@ export function runValidate(req, limits) {
       for (const t of ["number", "date", "email"]) {
         const ok = nonBlank.filter(([v]) => checkType(v, t));
         if (nonBlank.length >= 5 && ok.length / nonBlank.length >= 0.9 && ok.length < nonBlank.length) {
-          for (const [v, rowNo] of nonBlank) if (!checkType(v, t)) add(rowNo, c, "type_outlier", v, `열 대부분이 ${t}인데 형식이 다릅니다`);
+          for (const [v, rowNo] of nonBlank) if (!checkType(v, t)) add(rowNo, c, "type_outlier", v, `Most values in this column are ${t}, but this one is not`);
           break;
         }
       }
@@ -150,9 +180,29 @@ export function runValidate(req, limits) {
   const errorRate = Math.min(errorCount / cells, 1);
   const qualityScore = Math.round(Math.max(0, Math.min(100, completeness * 40 + (1 - errorRate) * 60)));
 
+  // 개선 권고 (구매자가 바로 조치할 수 있는 수준으로)
+  const recommendations = [];
+  for (const [c, p] of Object.entries(profile)) {
+    if (p.nullRate >= 0.2) recommendations.push(`Column "${c}" is ${(p.nullRate * 100).toFixed(0)}% empty; consider making it optional or backfilling it.`);
+    if (p.inferredType === "string" && p.distinctCount === records.length && records.length >= 5 && /id|key|code/i.test(c)) recommendations.push(`Column "${c}" looks like a unique identifier; consider adding "unique": true to the schema.`);
+  }
+  for (const [c, n] of Object.entries(byColumn).sort((a, b) => b[1] - a[1]).slice(0, 3)) recommendations.push(`Column "${c}" has ${n} error(s); fix it first for the largest quality gain.`);
+  if (suggestedCount) recommendations.push(`${suggestedCount} error(s) include a safe "suggestion" you can apply automatically.`);
+  if (!schema) recommendations.push("No schema was provided; pass \"schema\" with column rules (type, required, unique, min/max, pattern, enum) for a stricter audit.");
+
+  const notes = [
+    errorCount === 0 ? `All ${records.length} rows passed validation.` : `${errorCount} issue(s) found in ${errorRows.size} of ${records.length} rows.`,
+    `Quality score: QUALITY/100 (completeness ${(completeness * 100).toFixed(1)}%).`,
+  ];
+
   return {
+    notes: notes.map((n) => n.replace("QUALITY", String(qualityScore))),
+    recommendations,
+    errorsByColumn: byColumn,
     summary: {
       valid: errorCount === 0,
+      rowsWithErrors: errorRows.size,
+      suggestionsAvailable: suggestedCount,
       qualityScore,
       rowsChecked: records.length,
       columnsChecked: columns.length,

@@ -6,6 +6,7 @@ import { runValidate } from "../src/services/validate.js";
 import { parseDelimited, parseDate, parseNumber, loadTable } from "../src/services/common.js";
 import { fulfil, resolveService } from "../src/services/index.js";
 import { SAMPLE_CSV, SAMPLE_JSON, verifyDeliverable } from "../src/sim/scenarios.js";
+import { findComparable, proposePrice } from "../src/core/pricing.js";
 
 const L = { maxInputBytes: 1_000_000, maxRows: 20_000, maxDeliverableBytes: 500_000 };
 
@@ -57,8 +58,8 @@ test("변환: 중첩 JSON → CSV 자동 평탄화 + 필터·정렬·형변환",
 });
 
 test("변환: 존재하지 않는 열/연산 거부", () => {
-  assert.throws(() => runTransform({ data: SAMPLE_CSV, outputFormat: "json", operations: [{ op: "drop", columns: ["x"] }] }, L), /존재하지 않는 열/);
-  assert.throws(() => runTransform({ data: SAMPLE_CSV, outputFormat: "json", operations: [{ op: "eval" }] }, L), /올바르지 않습니다/);
+  assert.throws(() => runTransform({ data: SAMPLE_CSV, outputFormat: "json", operations: [{ op: "drop", columns: ["x"] }] }, L), /unknown column/);
+  assert.throws(() => runTransform({ data: SAMPLE_CSV, outputFormat: "json", operations: [{ op: "eval" }] }, L), /Invalid operation/);
 });
 
 test("변환: split·concat·limit, JSONL 왕복", () => {
@@ -78,7 +79,7 @@ test("검수: 스키마 규칙별 오류 집계", () => {
 });
 
 test("검수: ReDoS 위험 패턴 차단", () => {
-  assert.throws(() => runValidate({ data: "a\nx\n", schema: { columns: { a: { pattern: "(a+)+$" } } } }, L), /중첩 반복/);
+  assert.throws(() => runValidate({ data: "a\nx\n", schema: { columns: { a: { pattern: "(a+)+$" } } } }, L), /Nested quantifiers/);
 });
 
 test("검수: 스키마 없으면 자동 프로파일 (완전 중복행 탐지)", () => {
@@ -89,8 +90,8 @@ test("검수: 스키마 없으면 자동 프로파일 (완전 중복행 탐지)"
 });
 
 test("입력 한도 초과 거부", () => {
-  assert.throws(() => loadTable("a\n" + "x\n".repeat(30), "csv", { maxRows: 10 }), /한도/);
-  assert.throws(() => loadTable("x".repeat(2000), "csv", { maxInputBytes: 1000 }), /한도/);
+  assert.throws(() => loadTable("a\n" + "x\n".repeat(30), "csv", { maxRows: 10 }), /exceeds the limit/);
+  assert.throws(() => loadTable("x".repeat(2000), "csv", { maxInputBytes: 1000 }), /exceeds the limit/);
 });
 
 test("납품물: sha256 무결성 + QA 통과, 구매자 검수기 통과", () => {
@@ -117,4 +118,39 @@ test("서비스 라우팅", () => {
   assert.equal(resolveService({ data: "x", operations: [] }, null, []), "data-transform");
   assert.equal(resolveService({ data: "x" }, null, []), "data-clean");
   assert.equal(resolveService({ prompt: "logo" }, "Logo", offerings), null);
+});
+
+test("품질 강화: 유니코드 정규화·변경 예시·문제값 목록·요약", () => {
+  const r = runClean({ data: "Name,Email,Joined\nＫｉｍ\u200b Minsu,KIM@EXAMPLE.COM,2024/3/5\nLee,bad@x,2024-13-01\n" }, L);
+  assert.match(r.output.data, /^name,email,joined\nKim Minsu,kim@example.com,2024-03-05\nLee,bad@x,2024-13-01\n$/);
+  assert.ok(r.changeSamples.some((c) => c.rule === "unicode" && c.after === "Kim Minsu"));
+  assert.deepEqual(r.issues.map((i) => i.problem).sort(), ["invalid email format", "invalid or ambiguous date (kept as-is)"]);
+  assert.equal(r.notes.length, 3);
+});
+
+test("품질 강화: 검수 오류의 안전한 수정 제안·권고·영문 메시지", () => {
+  const data = "id,email,status,amount\n1,A@B .COM,Active,1 000\n2,x@y.io,active,5\n3,,pending,-1\n";
+  const r = runValidate({ data, schema: { columns: { email: { type: "email", required: true }, status: { enum: ["active", "pending"] }, amount: { type: "number", min: 0 } } } }, L);
+  const byRule = Object.fromEntries(r.errors.map((e) => [e.rule + ":" + e.column, e]));
+  assert.equal(byRule["type:email"].suggestion, "a@b.com");
+  assert.equal(byRule["enum:status"].suggestion, "active");
+  assert.equal(byRule["type:amount"].suggestion, 1000);
+  assert.equal(byRule["min:amount"].suggestion, undefined); // 음수는 임의 보정하지 않음
+  assert.equal(r.summary.rowsWithErrors, 2); // 1행·3행 (2행은 정상)
+  assert.ok(r.recommendations.some((x) => /safe "suggestion"/.test(x)));
+  assert.match(byRule["required:email"].message, /^Required value is empty$/);
+});
+
+test("경쟁 가격: 유사 상품 최저가보다 10% 낮게, 하한가 유지, 없으면 현행 유지", () => {
+  const agents = [
+    { name: "A", walletAddress: "0xA", offerings: [{ name: "CSV Data Cleaning", description: "clean csv", priceType: "fixed", priceValue: 0.4 }, { name: "Logo", description: "logo design", priceType: "fixed", priceValue: 0.1 }] },
+    { name: "B", walletAddress: "0xB", offerings: [{ name: "Dataset cleanup", description: "data cleaning and dedup", priceType: "fixed", priceValue: 0.25 }] },
+    { name: "Me", walletAddress: "0xME", offerings: [{ name: "Data Cleaning", description: "data cleaning", priceType: "fixed", priceValue: 0.3 }] },
+    { name: "C", walletAddress: "0xC", offerings: [{ name: "Data cleaning", description: "hidden", priceType: "fixed", priceValue: 0.01, isHidden: true }] },
+  ];
+  const comp = findComparable(agents, "data-clean", { excludeWallets: ["0xme"] });
+  assert.deepEqual(comp.map((c) => c.priceUsdc), [0.25, 0.4]); // 자기 상품·숨김·무관 상품 제외
+  assert.deepEqual(proposePrice({ currentUsdc: 0.3, comparable: comp }), { priceUsdc: 0.22, changed: true, reason: "10% below lowest comparable offering (0.25 USDC)", lowestCompetitorUsdc: 0.25 });
+  assert.equal(proposePrice({ currentUsdc: 0.3, comparable: [{ priceUsdc: 0.03 }], floorUsdc: 0.05 }).priceUsdc, 0.05);
+  assert.deepEqual(proposePrice({ currentUsdc: 0.3, comparable: [] }).changed, false);
 });

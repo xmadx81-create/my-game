@@ -6,13 +6,43 @@
     "maxRows": 20000,
     "maxDeliverableBytes": 500000
   },
-  "protocolFeeRate": 0.20,
+  "protocolFeeRate": 0.2,
   "dailyJobCap": 500,
   "maxConcurrentJobs": 20,
-  "requireApprovalFor": ["mainnet", "register-offerings", "price-change", "withdraw", "topup", "tokenize", "trade"],
+  "requireApprovalFor": [
+    "mainnet",
+    "register-offerings",
+    "price-change",
+    "withdraw",
+    "topup",
+    "tokenize",
+    "trade"
+  ],
   "costs": {
     "aiCostPerJobUsd": 0,
     "monthlyFixedUsd": 0,
     "_note": "MVP는 결정적 처리로 AI 호출 0회. 서버 등 고정비 발생 시 monthlyFixedUsd 입력"
+  },
+  "pricing": {
+    "_comment": "유사 상품 최저가보다 undercutRate만큼 낮게, floorUsdc 미만 금지. 적용은 'price-change' 승인 필요",
+    "undercutRate": 0.1,
+    "floorUsdc": 0.05,
+    "searchQueries": {
+      "data-clean": [
+        "data cleaning",
+        "csv cleaning",
+        "data cleanup"
+      ],
+      "data-transform": [
+        "data transformation",
+        "csv to json",
+        "format conversion"
+      ],
+      "data-validate": [
+        "data validation",
+        "data quality",
+        "schema validation"
+      ]
+    }
   }
 }

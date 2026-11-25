@@ -32,7 +32,7 @@ export function resolveService(requirement, offeringName, offerings) {
 export function precheck(service, requirement, limits) {
   try {
     const run = SERVICES[service];
-    if (!run) throw new ServiceError("UNSUPPORTED", `지원하지 않는 서비스: ${service}`);
+    if (!run) throw new ServiceError("UNSUPPORTED", `Unsupported service: ${service}`);
     const result = run(requirement, limits);
     return { ok: true, result };
   } catch (e) {
@@ -44,7 +44,7 @@ export function fulfil(jobId, service, requirement, limits) {
   const pre = precheck(service, requirement, limits);
   if (!pre.ok) return pre;
   const qa = qaCheck(service, pre.result, limits);
-  if (!qa.passed) return { ok: false, code: "QA_FAILED", message: "자동 검수 실패", qa };
+  if (!qa.passed) return { ok: false, code: "QA_FAILED", message: "Self-QA failed", qa };
   const deliverable = buildDeliverable({ jobId, service, version: SERVICE_VERSION, result: pre.result, qa });
   return { ok: true, deliverable, qa, summary: pre.result.summary };
 }
