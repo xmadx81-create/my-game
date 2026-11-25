@@ -1,0 +1,18 @@
+{
+  "_comment": "운영 정책. 수수료율·한도는 최신 공식 기준 재확인 필요 (2026-11-25 조사 기준)",
+  "network": "testnet",
+  "limits": {
+    "maxInputBytes": 1000000,
+    "maxRows": 20000,
+    "maxDeliverableBytes": 500000
+  },
+  "protocolFeeRate": 0.20,
+  "dailyJobCap": 500,
+  "maxConcurrentJobs": 20,
+  "requireApprovalFor": ["mainnet", "register-offerings", "price-change", "withdraw", "topup", "tokenize", "trade"],
+  "costs": {
+    "aiCostPerJobUsd": 0,
+    "monthlyFixedUsd": 0,
+    "_note": "MVP는 결정적 처리로 AI 호출 0회. 서버 등 고정비 발생 시 monthlyFixedUsd 입력"
+  }
+}

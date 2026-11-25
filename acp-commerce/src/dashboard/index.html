@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACP 수익화 관제</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#16181d;--muted:#667085;--line:#e4e7ec;--ok:#12805c;--bad:#c4320a;--warn:#b54708;--accent:#2f5bea;--bar:#c7d4fb}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--fg:#e8eaee;--muted:#98a2b3;--line:#2a2f3a;--ok:#3ccb8f;--bad:#ff7a59;--warn:#f5b453;--accent:#7c9cff;--bar:#2c3a66}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{font-size:18px;margin:0}h2{font-size:14px;margin:0 0 10px;color:var(--muted);font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:16px;display:grid;gap:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}.kpi .l{color:var(--muted);font-size:12px}
+.two{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right}.scroll{overflow-x:auto}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line)}
+.s-completed,.s-running{color:var(--ok)}.s-failed,.s-rejected,.s-stopped{color:var(--bad)}.s-declined,.s-expired,.s-idle,.s-not_started{color:var(--warn)}
+.bar{height:8px;background:var(--bar);border-radius:4px}.muted{color:var(--muted);font-size:12px}
+.note{font-size:12px;color:var(--muted);border-left:3px solid var(--warn);padding-left:8px}
+</style>
+</head>
+<body>
+<header><h1>ACP 자동 수익화 관제</h1><div class="muted" id="meta">불러오는 중…</div></header>
+<main>
+  <section class="grid" id="kpis"></section>
+  <section class="two">
+    <div class="card"><h2>상품별 매출</h2><div class="scroll"><table id="products"></table></div></div>
+    <div class="card"><h2>월간 수익 · 비용</h2><div id="monthly"></div></div>
+  </section>
+  <section class="two">
+    <div class="card"><h2>서비스 운영 상태</h2><div id="service"></div></div>
+    <div class="card"><h2>USDC 지갑</h2><div id="wallet"></div><p class="note">출금·충전·가격변경·메인넷 전환은 관리자 승인 후 수동 진행 (자동 경로 없음)</p><h2 style="margin-top:12px">유효 승인 내역</h2><div id="approvals"></div></div>
+  </section>
+  <section class="card"><h2>최근 주문</h2><div class="scroll"><table id="jobs"></table></div></section>
+  <section class="two">
+    <div class="card"><h2>신규 사업 후보</h2><div class="scroll"><table id="cands"></table></div></div>
+    <div class="card"><h2>수요 신호 (거절·실패 요청 집계)</h2><div id="signals"></div></div>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const usdc=n=>(n??0).toLocaleString("ko-KR",{minimumFractionDigits:2,maximumFractionDigits:4});
+const pct=n=>n==null?"-":(n*100).toFixed(1)+"%";
+const ts=s=>s?new Date(s).toLocaleString("ko-KR"):"-";
+const token=new URLSearchParams(location.search).get("token");
+async function load(){
+  try{
+    const r=await fetch("api/metrics"+(token?"?token="+encodeURIComponent(token):""));
+    const m=await r.json(); render(m);
+  }catch(e){$("meta").textContent="데이터 조회 실패: "+e.message}
+}
+function render(m){
+  const o=m.orders;
+  $("meta").textContent=`갱신 ${ts(m.generatedAt)} · 네트워크 ${m.service.network??"-"} · 10초 자동 갱신`;
+  const k=[["오늘의 주문",o.today,`오늘 완료 ${o.todayCompleted}`],["누적 주문",o.cumulative,`진행중 ${o.inProgress}`],["완료",o.completed,`성공률 ${pct(o.successRate)}`],["실패",o.failed,`사전거절 ${o.declined} · 만료 ${o.expired}`],["이번달 순매출 (USDC)",usdc(m.monthly.netUsdc),`총매출 ${usdc(m.monthly.grossUsdc)}`],["이번달 순이익 (USD)",usdc(m.monthly.profitUsd),"순매출 − AI비 − 고정비"],["AI 사용료 (월)",usdc(m.costs.aiCostMonthUsd),`누적 ${usdc(m.costs.aiCostTotalUsd)}`],["지갑 잔액 (USDC)",m.wallet?usdc(m.wallet.usdc):"-",m.wallet?`조회 ${ts(m.wallet.at)}`:"미조회"]];
+  $("kpis").innerHTML=k.map(([l,v,s])=>`<div class="card kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div><div class="muted">${esc(s)}</div></div>`).join("");
+  const P=Object.entries(m.revenueByProduct); const max=Math.max(...P.map(([,p])=>p.netUsdc),0.0001);
+  $("products").innerHTML=`<tr><th>상품</th><th class="n">단가</th><th class="n">주문</th><th class="n">완료</th><th class="n">실패</th><th class="n">순매출</th><th style="width:25%"></th></tr>`+P.map(([k,p])=>`<tr><td>${esc(p.name)}</td><td class="n">${usdc(p.priceUsdc)}</td><td class="n">${p.orders}</td><td class="n">${p.completed}</td><td class="n">${p.failed}</td><td class="n">${usdc(p.netUsdc)}</td><td><div class="bar" style="width:${(p.netUsdc/max*100).toFixed(1)}%"></div></td></tr>`).join("");
+  const h=Object.entries(m.monthly.history).sort().slice(-6);
+  $("monthly").innerHTML=`<table><tr><th>항목</th><th class="n">금액</th></tr>
+  <tr><td>총매출 (${esc(m.monthly.month)})</td><td class="n">${usdc(m.monthly.grossUsdc)} USDC</td></tr>
+  <tr><td>프로토콜 수수료 (${pct(m.costs.protocolFeeRate)})</td><td class="n">−${usdc(m.monthly.grossUsdc-m.monthly.netUsdc)} USDC</td></tr>
+  <tr><td>AI 사용료</td><td class="n">−${usdc(m.costs.aiCostMonthUsd)} USD</td></tr>
+  <tr><td>운영 고정비</td><td class="n">−${usdc(m.costs.fixedMonthUsd)} USD</td></tr>
+  <tr><th>월간 순이익</th><th class="n">${usdc(m.monthly.profitUsd)} USD</th></tr></table>
+  <p class="muted">월별: ${h.length?h.map(([k,v])=>`${esc(k)} ${usdc(v.netUsdc)} (${v.orders}건)`).join(" · "):"기록 없음"}</p>`;
+  const s=m.service;
+  $("service").innerHTML=`<p>상태 <span class="pill s-${esc(s.status)}">${esc(s.status)}</span> · 어댑터 ${esc(s.adapter??"-")}</p>
+  <p class="muted">주소 ${esc(s.address??"-")}<br>시작 ${ts(s.startedAt)} · 최근 이벤트 ${ts(s.lastEventAt)}${s.lastEventAgeSec!=null?` (${s.lastEventAgeSec}초 전)`:""}<br>평균 처리시간 ${o.avgProcessingMs??"-"}ms</p>
+  <table><tr><th>판매 상품</th><th class="n">USDC</th><th class="n">SLA(분)</th></tr>${s.offerings.map(x=>`<tr><td>${esc(x.name)}</td><td class="n">${usdc(x.priceUsdc)}</td><td class="n">${x.slaMinutes}</td></tr>`).join("")}</table>`;
+  const w=m.wallet;
+  $("wallet").innerHTML=w?`<div class="kpi"><div class="v">${usdc(w.usdc)} USDC</div><div class="muted">출처 ${esc(w.source)} · ${ts(w.at)}</div></div>`:`<p class="muted">지갑 미조회 (provider 미기동)</p>`;
+  $("approvals").innerHTML=m.approvals.length?`<table><tr><th>작업</th><th>승인자</th><th>일시</th><th>만료</th></tr>${m.approvals.map(a=>`<tr><td>${esc(a.action)}</td><td>${esc(a.approvedBy)}</td><td>${ts(a.approvedAt)}</td><td>${a.expiresAt?ts(a.expiresAt):"-"}</td></tr>`).join("")}</table>`:`<p class="muted">승인 내역 없음 (메인넷·출금 등 차단 상태)</p>`;
+  $("jobs").innerHTML=`<tr><th>Job</th><th>상품</th><th>상태</th><th class="n">단가</th><th class="n">순수익</th><th>갱신</th><th>사유</th></tr>`+(m.recentJobs.map(j=>`<tr><td>${esc(j.jobId)}</td><td>${esc(j.service??"-")}</td><td><span class="s-${esc(j.status)}">${esc(j.status)}</span></td><td class="n">${j.price!=null?usdc(j.price):"-"}</td><td class="n">${j.netUsdc!=null?usdc(j.netUsdc):"-"}</td><td>${ts(j.updatedAt)}</td><td class="muted">${esc(j.failReason??"")}</td></tr>`).join("")||`<tr><td colspan="7" class="muted">주문 없음</td></tr>`);
+  $("cands").innerHTML=`<tr><th>후보</th><th>난이도</th><th>예상단가</th><th>상태</th></tr>`+m.candidates.planned.map(c=>`<tr><td title="${esc(c.rationale)}">${esc(c.name)}</td><td>${esc(c.difficulty)}</td><td>${esc(c.expectedPriceUsdc)}</td><td>${esc(c.status)}</td></tr>`).join("");
+  const sc=Object.entries(m.candidates.demandSignals);
+  $("signals").innerHTML=sc.length?`<table><tr><th>신호</th><th class="n">건수</th></tr>${sc.sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${v}</td></tr>`).join("")}</table><p class="muted">최근: ${m.candidates.recentSignals.slice(0,3).map(x=>esc(x.detail)).join(" / ")}</p>`:`<p class="muted">수요 신호 없음</p>`;
+}
+load(); setInterval(load,10000);
+</script>
+</body>
+</html>
