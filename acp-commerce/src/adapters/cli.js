@@ -19,6 +19,8 @@ function resolveBin() {
 export function cliEnv() {
   const env = { ...process.env };
   if ((env.HTTPS_PROXY || env.https_proxy) && !env.NODE_USE_ENV_PROXY) env.NODE_USE_ENV_PROXY = "1";
+  // 헤드리스 Linux: 토큰 저장은 파일 키링으로 폴백되나 조회 시 다른 백엔드가 선택되어 "Not authenticated" 발생 → 파일 백엔드 고정
+  if (process.platform === "linux" && !env.TS_KEYRING_BACKEND && !env.DBUS_SESSION_BUS_ADDRESS) env.TS_KEYRING_BACKEND = "file";
   return env;
 }
 

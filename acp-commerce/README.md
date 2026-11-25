@@ -56,13 +56,22 @@ npm run simulate:dashboard       # 모의 데이터로 관제 화면 → http://
 
 메인넷 전환은 `node src/bin/admin.js approve mainnet --by <이름>` 승인을 받은 뒤 `IS_TESTNET` 없이 기동합니다. 승인이 없으면 기동이 거부됩니다.
 
-## 5. 필요 네트워크 호스트
+## 5. 클라우드(헤드리스 Linux) 실행 시 환경변수
+
+| 변수 | 값 | 이유 |
+|---|---|---|
+| `NODE_USE_ENV_PROXY` | `1` | Node 내장 fetch가 HTTPS_PROXY를 따르도록 (없으면 `fetch failed`) |
+| `TS_KEYRING_BACKEND` | `file` | 로그인 토큰 조회 실패(`Not authenticated`) 방지 |
+
+`src/adapters/cli.js`의 `cliEnv()`가 위 두 값을 자동으로 설정합니다. 직접 `acp` 명령을 실행할 때는 수동으로 지정해야 합니다.
+
+## 6. 필요 네트워크 호스트
 
 `api.acp.virtuals.io`, `api-dev.acp.virtuals.io`, `auth.privy.io`, `api.privy.io`, `alchemy-proxy*.virtuals.io`, `base-*.g.alchemy.com`, `sepolia.base.org`
 
 이 호스트들은 현재 클라우드 환경 "깃"에 허용 등록되어 있습니다.
 
-## 6. 운영 규칙 (구현 반영 사항)
+## 7. 운영 규칙 (구현 반영 사항)
 
 1. **예산 제시 전 실제 처리를 한 번 시험 실행**합니다. 처리할 수 없는 주문은 예산을 제시하지 않고 사유 메시지만 보내므로 구매자 자금이 이동하지 않습니다.
 2. **납품물**은 결과, 요약, 자동검수(QA) 결과, sha256 해시를 담은 JSON입니다. 구매자가 해시로 무결성을 검증할 수 있습니다.
