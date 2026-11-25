@@ -36,8 +36,9 @@ elif ! swapon --show 2>/dev/null | grep -q '/swapfile'; then
 else echo "이미 설정됨"; fi
 
 say "2/7 기본 패키지"
-run apt-get update -y
-run env DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates xz-utils
+# 새 VM은 첫 부팅 시 자동 보안 업데이트가 패키지 잠금을 잡고 있으므로 최대 10분 대기
+run apt-get -o DPkg::Lock::Timeout=600 update -y
+run env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y git curl ca-certificates xz-utils
 
 say "3/7 Node.js ${NODE_MAJOR} LTS (nodejs.org 공식 배포본, SHA256 검증)"
 if ! /usr/local/bin/node -v 2>/dev/null | grep -q "^v${NODE_MAJOR}\."; then
