@@ -14,7 +14,19 @@ export class Store {
     this.state = existsSync(this.file) ? { ...EMPTY(), ...JSON.parse(readFileSync(this.file, "utf8")) } : EMPTY();
   }
 
+  /** 승인 기록은 관리자 도구(admin.js)가 소유 → 디스크 최신본을 읽어 온다 (다른 프로세스의 승인 유실 방지) */
+  refreshApprovals() {
+    if (this.approvalsDirty || !existsSync(this.file)) return this.state.approvals;
+    try {
+      const disk = JSON.parse(readFileSync(this.file, "utf8"));
+      if (Array.isArray(disk.approvals)) this.state.approvals = disk.approvals;
+    } catch { /* 파일 쓰기 중이면 기존 값 유지 */ }
+    return this.state.approvals;
+  }
+
   save() {
+    this.refreshApprovals(); // 이 프로세스가 승인을 바꾸지 않았다면 디스크의 승인 기록을 보존
+    this.approvalsDirty = false;
     const tmp = this.file + ".tmp";
     writeFileSync(tmp, JSON.stringify(this.state, null, 2));
     renameSync(tmp, this.file);

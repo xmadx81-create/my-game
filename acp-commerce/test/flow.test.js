@@ -138,3 +138,16 @@ test("CLI 어댑터(테스트넷): 공식 CLI 명령으로 예산 제시·납품
   assert.ok(!calls.some((c) => ["trade"].includes(c[0]) || (c[0] === "wallet" && ["send-transaction", "topup"].includes(c[1])) || (c[0] === "agent" && c[1] === "tokenize")));
   assert.equal(store.job("77").netUsdc, 0.16);
 });
+
+test("승인 유실 방지: 실행 중인 프로세스가 저장해도 관리자 도구의 승인 기록이 보존됨", () => {
+  const dir = tmp();
+  const running = new Store(dir); // provider (승인 이전 상태를 메모리에 보유)
+  const admin = new Guard(new Store(dir), cfg.policy);
+  admin.approve("auto-launch", "admin");
+  running.setHeartbeat({ state: "stopped" }); // provider 종료 시 저장
+  const g = new Guard(running, cfg.policy);
+  assert.equal(g.isApproved("auto-launch"), true);
+  assert.equal(new Guard(new Store(dir), cfg.policy).isApproved("auto-launch"), true);
+  admin.revoke("auto-launch");
+  assert.equal(g.isApproved("auto-launch"), false); // 철회도 즉시 반영
+});

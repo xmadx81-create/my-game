@@ -20,7 +20,7 @@ export class Guard {
   isApproved(action) {
     if (FORBIDDEN_ACTIONS.has(action)) return false;
     const now = Date.now();
-    return this.store.state.approvals.some((a) => a.action === action && !a.revokedAt && (!a.expiresAt || Date.parse(a.expiresAt) > now));
+    return this.store.refreshApprovals().some((a) => a.action === action && !a.revokedAt && (!a.expiresAt || Date.parse(a.expiresAt) > now));
   }
 
   require(action) {
@@ -36,13 +36,17 @@ export class Guard {
     if (FORBIDDEN_ACTIONS.has(action)) throw new Error(`금지된 작업은 승인할 수 없습니다: ${action}`);
     if (!by) throw new Error("--by <관리자명> 필요");
     const rec = { action, approvedBy: by, note, approvedAt: new Date().toISOString(), expiresAt: hours ? new Date(Date.now() + hours * 3600e3).toISOString() : null };
+    this.store.refreshApprovals();
     this.store.state.approvals.push(rec);
+    this.store.approvalsDirty = true;
     this.store.save();
     return rec;
   }
 
   revoke(action) {
     let n = 0;
+    this.store.refreshApprovals();
+    this.store.approvalsDirty = true;
     for (const a of this.store.state.approvals) if (a.action === action && !a.revokedAt) (a.revokedAt = new Date().toISOString()), n++;
     this.store.save();
     return n;
