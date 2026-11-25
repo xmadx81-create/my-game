@@ -114,7 +114,7 @@ test("CLI 어댑터(테스트넷): 공식 CLI 명령으로 예산 제시·납품
   assert.equal(adapter.network, "testnet");
   const runtime = new ProviderRuntime({ adapter, store, offerings: cfg.offerings, policy: cfg.policy, log: () => {} });
   await runtime.start();
-  assert.equal(store.state.wallet.usdc, 12.5);
+  assert.equal(store.state.wallet.usdc, 12.5); // 0xbebc20 = 12,500,000 (6 decimals)
 
   // acp events listen 이 기록하는 NDJSON 라인을 흉내
   const ev = (entry, status) => appendFileSync(adapter.eventsFile, JSON.stringify({ jobId: "77", chainId: 84532, status, roles: ["provider"], availableTools: [], entry }) + "\n");

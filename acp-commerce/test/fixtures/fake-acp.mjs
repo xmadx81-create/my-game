@@ -6,7 +6,10 @@ appendFileSync(process.env.FAKE_ACP_LOG, JSON.stringify(args) + "\n");
 const [a, b] = args;
 const out = (o) => process.stdout.write(JSON.stringify(o) + "\n");
 if (a === "wallet" && b === "address") out({ address: "0xFAKEPROVIDER" });
-else if (a === "wallet" && b === "balance") out({ chains: [{ chainId: 84532, tokens: [{ symbol: "USDC", balance: "12.5" }, { symbol: "ETH", balance: "0.01" }] }] });
+else if (a === "wallet" && b === "balance") out({ chainId: 84532, address: "0xFAKEPROVIDER", tokens: [
+  { tokenAddress: null, tokenBalance: "0x2386f26fc10000", tokenMetadata: { symbol: null, decimals: null } },
+  { tokenAddress: "0xecc22a8f6fd62388498fba19813e214605a2bdb3", tokenBalance: "0xbebc20", tokenMetadata: { symbol: "USDC", decimals: 6 } },
+] });
 else if (a === "events" && b === "listen") setTimeout(() => {}, 1e9);
 else if (a === "events" && b === "drain") {
   const f = args[args.indexOf("--file") + 1];

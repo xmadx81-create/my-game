@@ -7,6 +7,9 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// 공식 SDK(acp-node-v2 core/constants) 기준 USDC 컨트랙트 주소
+const USDC = { 84532: "0xECc22a8F6fD62388498fBa19813E214605a2BDb3", 8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" };
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function resolveBin() {
@@ -111,10 +114,17 @@ export class CliAdapter {
     return name;
   }
 
+  /** USDC 잔액 조회: `acp wallet balance --chain-id <id> --json` 의 tokens[] (tokenBalance는 16진수 원시값) */
   async getWalletBalance() {
-    const r = await this.run(["wallet", "balance"]);
-    const usdc = deepFind(r, (o) => /usdc/i.test(String(o.symbol ?? o.token ?? "")))
-      .map((o) => ({ chainId: o.chainId ?? null, amount: Number(o.balance ?? o.amount ?? o.formatted ?? 0) }));
-    return { source: "acp-cli", network: this.network, usdc: usdc.reduce((a, b) => a + (Number.isFinite(b.amount) ? b.amount : 0), 0), detail: usdc };
+    const chainId = this.network === "testnet" ? 84532 : 8453; // Base Sepolia / Base
+    const usdcAddr = USDC[chainId].toLowerCase();
+    const r = await this.run(["wallet", "balance", "--chain-id", String(chainId)]);
+    const tok = (r.tokens || []).find((t) => (t.tokenAddress || "").toLowerCase() === usdcAddr || /^usdc$/i.test(t.tokenMetadata?.symbol || ""));
+    let usdc = 0;
+    if (tok?.tokenBalance) {
+      const decimals = Number(tok.tokenMetadata?.decimals ?? 6);
+      usdc = Number(BigInt(tok.tokenBalance)) / 10 ** decimals;
+    }
+    return { source: "acp-cli", network: this.network, chainId, address: r.address ?? null, usdc };
   }
 }

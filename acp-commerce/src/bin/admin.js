@@ -4,7 +4,7 @@
 //   node src/bin/admin.js approve <action> --by <이름> [--hours N] [--note "..."]
 //   node src/bin/admin.js revoke <action>
 //   node src/bin/admin.js offerings                         등록 명령 미리보기(dry-run)
-//   node src/bin/admin.js offerings --apply                 실제 등록 ('register-offerings' 승인 필요)
+//   node src/bin/admin.js offerings --apply [--only data-validate]  실제 등록 ('register-offerings' 승인 필요)
 //   node src/bin/admin.js metrics                           관제 지표 JSON 출력
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -47,7 +47,10 @@ try {
         if (!testnet) guard.require("mainnet");
       }
       const bin = process.env.ACP_BIN || (existsSync(join(ROOT, "node_modules/.bin/acp")) ? join(ROOT, "node_modules/.bin/acp") : "acp");
-      for (const o of cfg.offerings) {
+      const only = flag("--only");
+      const targets = only ? cfg.offerings.filter((o) => o.service === only) : cfg.offerings;
+      if (only && !targets.length) throw new Error(`--only: 알 수 없는 서비스 ${only} (data-clean | data-transform | data-validate)`);
+      for (const o of targets) {
         const a = offeringArgs(o);
         if (!apply) {
           console.log(`[dry-run] ${testnet ? "IS_TESTNET=true " : ""}acp ${a.map((x) => (/[\s{"]/.test(x) ? `'${x}'` : x)).join(" ")}\n`);
