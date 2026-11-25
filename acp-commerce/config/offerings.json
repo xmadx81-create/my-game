@@ -42,8 +42,7 @@
         "data"
       ]
     },
-    "deliverable": "JSON: {notes, summary, columns, columnTypes, changeSamples, issues, output:{format,rows,data}, qa, sha256}",
-    "basePriceUsdc": 0.3
+    "deliverable": "JSON: {notes, summary, columns, columnTypes, changeSamples, issues, output:{format,rows,data}, qa, sha256}"
   },
   {
     "service": "data-transform",
@@ -95,8 +94,7 @@
         "outputFormat"
       ]
     },
-    "deliverable": "JSON: {summary, operationsLog, columns, output:{format,rows,data}, qa, sha256}",
-    "basePriceUsdc": 0.25
+    "deliverable": "JSON: {summary, operationsLog, columns, output:{format,rows,data}, qa, sha256}"
   },
   {
     "service": "data-validate",
@@ -136,47 +134,6 @@
         "data"
       ]
     },
-    "deliverable": "JSON: {notes, recommendations, summary:{valid,qualityScore,errorCount,rowsWithErrors,...}, errorsByRule, errorsByColumn, errors[] (with suggestion), profile, qa, sha256}",
-    "basePriceUsdc": 0.2
-  },
-  {
-    "service": "email-list-clean",
-    "engine": "data-clean",
-    "preset": {
-      "options": {
-        "dedupeOnType": "email"
-      }
-    },
-    "name": "Email List Cleaner",
-    "description": "Cleans a contact/lead list: lowercases and trims emails, removes duplicates by email address, normalizes names (unicode, spacing), phone numbers and dates, and lists invalid emails in 'issues' instead of guessing. Deterministic, self-QA + sha256. CSV/TSV/JSON/JSONL up to 1MB / 20,000 rows.",
-    "priceUsdc": 0.15,
-    "basePriceUsdc": 0.15,
-    "slaMinutes": 10,
-    "requirements": {
-      "type": "object",
-      "properties": {
-        "data": {
-          "type": [
-            "string",
-            "array"
-          ],
-          "description": "CSV/TSV/JSON/JSONL text, or an array of objects"
-        },
-        "outputFormat": {
-          "type": "string",
-          "enum": [
-            "csv",
-            "tsv",
-            "json",
-            "jsonl"
-          ]
-        }
-      },
-      "required": [
-        "data"
-      ]
-    },
-    "deliverable": "JSON: {notes, summary, changeSamples, issues (invalid emails), output:{format,rows,data}, qa, sha256}",
-    "version": "1.0.0"
+    "deliverable": "JSON: {notes, recommendations, summary:{valid,qualityScore,errorCount,rowsWithErrors,...}, errorsByRule, errorsByColumn, errors[] (with suggestion), profile, qa, sha256}"
   }
 ]

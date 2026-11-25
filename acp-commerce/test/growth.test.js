@@ -190,3 +190,15 @@ test("자산관리: 제안만 생성(승인 필요), 토큰발행·트레이딩 
   assert.ok(t.proposals.every((p) => p.requiresApproval));
   assert.ok(!t.proposals.some((p) => /token|trade|트레이딩|토큰 발행|swap/i.test(p.title)));
 });
+
+test("운영 상태 덧씌우기: 코드 업데이트 후에도 가격 변경·출시 상품 유지", async () => {
+  const { loadConfig, applyRuntimeOverlay } = await import("../src/config.js");
+  const cfg = loadConfig();
+  const state = { launched: [{ service: "email-list-clean" }, { service: "unknown-x" }], priceHistory: [{ service: "data-clean", at: "2026-01-01T00:00:00Z", from: 0.3, to: 0.27 }] };
+  applyRuntimeOverlay(cfg, state);
+  assert.deepEqual(cfg.offerings.map((o) => o.service), ["data-clean", "data-transform", "data-validate", "email-list-clean"]);
+  assert.equal(cfg.offerings[0].priceUsdc, 0.27);
+  assert.equal(cfg.offerings[0].basePriceUsdc, 0.3); // 기준가는 정의값 유지 → 하한 계산 기준 불변
+  applyRuntimeOverlay(cfg, state); // 반복 적용해도 중복 없음
+  assert.equal(cfg.offerings.length, 4);
+});
