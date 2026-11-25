@@ -1,0 +1,7 @@
+[Unit]
+Description=ACP provider - code update, health check, state backup
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/acp/repo/acp-commerce/deploy/acp-update.sh

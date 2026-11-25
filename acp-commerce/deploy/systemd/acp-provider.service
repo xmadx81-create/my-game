@@ -1,0 +1,25 @@
+[Unit]
+Description=ACP provider (Tidy Data Desk) - data services on Virtuals ACP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=acp
+Group=acp
+WorkingDirectory=/opt/acp/repo/acp-commerce
+EnvironmentFile=/etc/acp-commerce.env
+ExecStart=/usr/local/bin/node src/bin/provider.js --dashboard 8787
+Restart=always
+RestartSec=15
+# 1GB 서버 보호: 메모리 상한
+MemoryMax=700M
+# 보안 강화: 코드 디렉터리는 읽기 전용, 데이터·키링만 쓰기 허용
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/var/lib/acp /home/acp
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

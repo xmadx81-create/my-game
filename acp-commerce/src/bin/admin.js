@@ -6,11 +6,13 @@
 //   node src/bin/admin.js offerings                         등록 명령 미리보기(dry-run)
 //   node src/bin/admin.js offerings --apply [--only data-validate]  실제 등록 ('register-offerings' 승인 필요)
 //   node src/bin/admin.js metrics                           관제 지표 JSON 출력
+//   node src/bin/admin.js export-state <file>               서버 이전용 운영 상태 내보내기 (승인·가격이력·출시상품·백로그)
+//   node src/bin/admin.js import-state <file>               운영 상태 가져오기 (기존 값과 병합)
 //   node src/bin/admin.js pricing [--apply]                 경쟁 가격 조사·제안 (적용은 'price-change' 승인 필요)
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, ROOT } from "../config.js";
+import { loadConfig, ROOT, applyRuntimeOverlay } from "../config.js";
 import { Store } from "../core/store.js";
 import { Guard } from "../core/guard.js";
 import { computeMetrics } from "../core/metrics.js";
@@ -21,6 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const cfg = loadConfig();
 const store = new Store(cfg.dataDir);
+applyRuntimeOverlay(cfg, store.state);
 const guard = new Guard(store, cfg.policy);
 const [cmd, arg] = process.argv.slice(2);
 const flag = (n) => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : undefined; };
@@ -109,9 +112,37 @@ try {
       }
       console.table(rows);
       if (apply) {
-        writeFileSync(join(ROOT, "config", "offerings.json"), JSON.stringify(cfg.offerings, null, 2) + "\n");
         store.addSignal({ kind: "pricing_run", detail: JSON.stringify(rows.map((r) => [r.service, r.current, r.proposed])) });
       } else console.log("※ 적용: 'price-change' 승인 후 --apply");
+      break;
+    }
+    case "export-state": {
+      const now = Date.now();
+      const st = store.state;
+      const out = {
+        exportedAt: new Date().toISOString(),
+        approvals: st.approvals.filter((a) => !a.revokedAt && (!a.expiresAt || Date.parse(a.expiresAt) > now)),
+        priceHistory: st.priceHistory || [], launched: st.launched || [], versions: st.versions || {},
+        backlog: (st.backlog || []).filter((b) => !b.doneAt), growth: (st.growth || []).slice(-4),
+      };
+      writeFileSync(arg || "state-export.json", JSON.stringify(out, null, 2) + "\n");
+      console.log(`내보내기 완료: ${arg || "state-export.json"} (승인 ${out.approvals.length}, 가격이력 ${out.priceHistory.length}, 출시 ${out.launched.length})`);
+      break;
+    }
+    case "import-state": {
+      const inp = JSON.parse(readFileSync(arg, "utf8"));
+      const st = store.state;
+      const key = (a) => `${a.action}|${a.approvedAt}`;
+      for (const a of inp.approvals || []) if (!st.approvals.some((x) => key(x) === key(a))) st.approvals.push({ ...a, note: `${a.note || ""} (imported ${inp.exportedAt})` });
+      const hk = (h) => `${h.service}|${h.at}`;
+      for (const h of inp.priceHistory || []) if (!(st.priceHistory ||= []).some((x) => hk(x) === hk(h))) st.priceHistory.push(h);
+      for (const l of inp.launched || []) if (!(st.launched ||= []).some((x) => x.service === l.service)) st.launched.push(l);
+      st.versions = { ...(inp.versions || {}), ...(st.versions || {}) };
+      for (const b of inp.backlog || []) if (!(st.backlog ||= []).some((x) => x.title === b.title && x.service === b.service)) st.backlog.push(b);
+      if (!(st.growth || []).length) st.growth = inp.growth || [];
+      store.approvalsDirty = true;
+      store.save();
+      console.log(`가져오기 완료: 승인 ${st.approvals.length}, 가격이력 ${st.priceHistory.length}, 출시 ${st.launched.length}`);
       break;
     }
     default:

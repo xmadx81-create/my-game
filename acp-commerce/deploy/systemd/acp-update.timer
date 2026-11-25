@@ -1,0 +1,11 @@
+[Unit]
+Description=Run ACP update/health check every 6 hours
+
+[Timer]
+OnBootSec=10min
+OnCalendar=*-*-* 00/6:17:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

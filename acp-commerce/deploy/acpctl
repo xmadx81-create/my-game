@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# ACP provider 서버 관리 명령 (sudo acpctl <명령>)
+#   login    Virtuals 로그인 (링크 클릭 → 자동 완료 대기)
+#   signer   이 서버용 서명키 등록 (링크 클릭 → 자동 완료 대기, 정책 restricted = Virtuals Only)
+#   start | stop | restart | status | logs
+#   report   최신 주간 성장 보고서 출력
+#   email    에이전트 메일함 생성 (주간 보고서 메일 발송용, 최초 1회)
+#   update   코드 업데이트·점검 즉시 실행
+#   backup   운영 상태 즉시 백업
+set -euo pipefail
+ENV_FILE=/etc/acp-commerce.env
+APP=/opt/acp/repo/acp-commerce
+# shellcheck disable=SC1090
+set -a; . "$ENV_FILE"; set +a
+[ "$(id -u)" -eq 0 ] || { echo "sudo acpctl $* 로 실행하세요."; exit 1; }
+
+acp() { runuser -u acp -- env ACP_DATA_DIR="$ACP_DATA_DIR" TS_KEYRING_BACKEND=file HOME=/home/acp NODE_NO_WARNINGS=1 PATH=/usr/local/bin:/usr/bin:/bin "$APP/node_modules/.bin/acp" "$@"; }
+js() { node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const o=JSON.parse(d.trim().split('\n').pop());console.log($1)})"; }
+
+case "${1:-help}" in
+  login)
+    out=$(acp configure start --json 2>/dev/null)
+    url=$(echo "$out" | js 'o.url'); rid=$(echo "$out" | js 'o.requestId')
+    echo; echo "▶ 아래 링크를 열어 Virtuals에 로그인하세요 (기존과 같은 개인 계정, 5분 내):"; echo; echo "  $url"; echo
+    acp configure complete --request-id "$rid" --wait --timeout 600 --json 2>/dev/null | tail -1
+    acp agent use --agent-id "$AGENT_ID" --json 2>/dev/null | tail -1 || true
+    echo "로그인 완료. 다음: sudo acpctl signer" ;;
+  signer)
+    acp agent use --agent-id "$AGENT_ID" --json >/dev/null 2>&1 || true
+    out=$(acp agent add-signer --agent-id "$AGENT_ID" --policy restricted --no-wait --json 2>/dev/null)
+    url=$(echo "$out" | js 'o.signerUrl'); rid=$(echo "$out" | js 'o.requestId'); pk=$(echo "$out" | js 'o.publicKey')
+    echo; echo "▶ 아래 링크를 열어 서명키를 승인하세요 (정책: Virtuals Only / 공개키 앞부분: ${pk:0:24}…):"; echo; echo "  $url"; echo
+    acp agent signer-status --agent-id "$AGENT_ID" --request-id "$rid" --public-key "$pk" --wait --timeout 600 --json 2>/dev/null | tail -1
+    acp agent signer-policy --json 2>/dev/null | tail -1
+    echo "서명키 등록 완료. 다음: sudo acpctl start" ;;
+  start) systemctl start acp-provider; sleep 5; systemctl --no-pager --lines=8 status acp-provider ;;
+  stop) systemctl stop acp-provider; echo "중지됨" ;;
+  restart) systemctl restart acp-provider; sleep 5; systemctl --no-pager --lines=5 status acp-provider ;;
+  status)
+    systemctl --no-pager --lines=0 status acp-provider || true
+    runuser -u acp -- env ACP_DATA_DIR="$ACP_DATA_DIR" node "$APP/src/bin/admin.js" metrics 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const m=JSON.parse(d);console.log('주문',JSON.stringify(m.orders));console.log('지갑',JSON.stringify(m.wallet));console.log('상품',m.service.offerings.map(o=>o.name+' '+o.priceUsdc).join(' / '));console.log('승인',m.approvals.map(a=>a.action+'~'+(a.expiresAt||'무기한').slice(0,10)).join(', '))})"
+    systemctl --no-pager list-timers acp-update.timer | head -3 ;;
+  logs) journalctl -u acp-provider -n "${2:-100}" --no-pager ;;
+  report) cat "$ACP_DATA_DIR/growth/"growth-*.md 2>/dev/null | tail -n 120 || echo "보고서 없음 (첫 사이클은 기동 1분 후)" ;;
+  email) acp email provision --json 2>/dev/null | tail -1; acp email whoami --json 2>/dev/null | tail -1
+         echo "보고서 수신 주소는 $ENV_FILE 의 REPORT_EMAIL= 에 입력 후 sudo acpctl restart" ;;
+  update) systemctl start acp-update.service; journalctl -u acp-update -n 30 --no-pager ;;
+  backup) cp "$ACP_DATA_DIR/state.json" "$ACP_DATA_DIR/backups/state-$(date +%F-%H%M).json" && ls -1 "$ACP_DATA_DIR/backups" | tail -3 ;;
+  *) sed -n '2,11p' "$0" ;;
+esac

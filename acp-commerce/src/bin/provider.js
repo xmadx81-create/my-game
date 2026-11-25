@@ -3,7 +3,7 @@
 //   IS_TESTNET=true node src/bin/provider.js            ← 테스트넷 (승인 불필요)
 //   node src/bin/provider.js                            ← 메인넷 (관리자 'mainnet' 승인 필요)
 //   옵션: --dashboard [port]  대시보드 동시 기동
-import { loadConfig } from "../config.js";
+import { loadConfig, applyRuntimeOverlay } from "../config.js";
 import { Store } from "../core/store.js";
 import { Guard } from "../core/guard.js";
 import { ProviderRuntime } from "../core/provider.js";
@@ -12,10 +12,11 @@ import { createDashboard } from "../dashboard/server.js";
 import { join } from "node:path";
 import { ROOT } from "../config.js";
 import { cliOps } from "../growth/acpOps.js";
-import { runGrowthCycle } from "../growth/cycle.js";
+import { runGrowthCycle, toMarkdown } from "../growth/cycle.js";
 
 const cfg = loadConfig();
 const store = new Store(cfg.dataDir);
+applyRuntimeOverlay(cfg, store.state); // 운영 중 가격·출시 상품 반영
 const guard = new Guard(store, cfg.policy);
 
 let adapter;
@@ -46,7 +47,15 @@ const growthTick = async () => {
   if (!due || growthRunning) return;
   growthRunning = true;
   try {
-    await runGrowthCycle({ store, cfg, ops: cliOps(adapter), guard, offeringsPath: join(ROOT, "config", "offerings.json"), reportDir: join(cfg.dataDir, "growth"), log: console.log });
+    const report = await runGrowthCycle({ store, cfg, ops: cliOps(adapter), guard, reportDir: join(cfg.dataDir, "growth"), log: console.log });
+    // 주간 보고서 메일 발송 (선택): 에이전트 전용 메일함(acp email)으로 관리자에게 전송
+    if (process.env.REPORT_EMAIL) {
+      try {
+        await adapter.run(["email", "compose", "--to", process.env.REPORT_EMAIL, "--subject", `[ACP 주간 성장 보고] ${report.at.slice(0, 10)}`, "--body", toMarkdown(report)]);
+      } catch (e) {
+        console.error(`[growth] report email failed: ${e.message}`);
+      }
+    }
   } catch (e) {
     console.error(`[growth] cycle failed: ${e.message}`);
     store.addSignal({ kind: "growth_error", detail: e.message });
