@@ -12,9 +12,9 @@ header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-conte
 h1{font-size:18px;margin:0}h2{font-size:14px;margin:0 0 10px;color:var(--muted);font-weight:600}
 main{max-width:1200px;margin:0 auto;padding:16px;display:grid;gap:16px}
 .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0;overflow-x:auto}
 .kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}.kpi .l{color:var(--muted);font-size:12px}
-.two{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.two{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:600;font-size:12px}
 td.n,th.n{text-align:right}.scroll{overflow-x:auto}
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line)}
@@ -37,6 +37,14 @@ td.n,th.n{text-align:right}.scroll{overflow-x:auto}
   </section>
   <section class="card"><h2>최근 주문</h2><div class="scroll"><table id="jobs"></table></div></section>
   <section class="two">
+    <div class="card"><h2>자율 성장: 상품별 판단·가격 범위</h2><div class="scroll"><table id="gprod"></table></div><p class="muted" id="gmeta"></p></div>
+    <div class="card"><h2>가격 변경 이력 (가드 적용)</h2><div class="scroll"><table id="ghist"></table></div></div>
+  </section>
+  <section class="two">
+    <div class="card"><h2>개선 백로그 (보완·업그레이드·신규엔진)</h2><div id="gback"></div><h2 style="margin-top:12px">자동 출시 상품</h2><div id="glaunch"></div></div>
+    <div class="card"><h2>자산관리 (제안만, 지출은 승인 후)</h2><div id="gtreas"></div></div>
+  </section>
+  <section class="two">
     <div class="card"><h2>신규 사업 후보</h2><div class="scroll"><table id="cands"></table></div></div>
     <div class="card"><h2>수요 신호 (거절·실패 요청 집계)</h2><div id="signals"></div></div>
   </section>
@@ -54,7 +62,7 @@ async function load(){
     const m=await r.json(); render(m);
   }catch(e){$("meta").textContent="데이터 조회 실패: "+e.message}
 }
-function render(m){
+var render=function(m){
   const o=m.orders;
   $("meta").textContent=`갱신 ${ts(m.generatedAt)} · 네트워크 ${m.service.network??"-"} · 10초 자동 갱신`;
   const k=[["오늘의 주문",o.today,`오늘 완료 ${o.todayCompleted}`],["누적 주문",o.cumulative,`진행중 ${o.inProgress}`],["완료",o.completed,`성공률 ${pct(o.successRate)}`],["실패",o.failed,`사전거절 ${o.declined} · 만료 ${o.expired}`],["이번달 순매출 (USDC)",usdc(m.monthly.netUsdc),`총매출 ${usdc(m.monthly.grossUsdc)}`],["이번달 순이익 (USD)",usdc(m.monthly.profitUsd),"순매출 − AI비 − 고정비"],["AI 사용료 (월)",usdc(m.costs.aiCostMonthUsd),`누적 ${usdc(m.costs.aiCostTotalUsd)}`],["지갑 잔액 (USDC)",m.wallet?usdc(m.wallet.usdc):"-",m.wallet?`조회 ${ts(m.wallet.at)}`:"미조회"]];
@@ -81,6 +89,19 @@ function render(m){
   const sc=Object.entries(m.candidates.demandSignals);
   $("signals").innerHTML=sc.length?`<table><tr><th>신호</th><th class="n">건수</th></tr>${sc.sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${v}</td></tr>`).join("")}</table><p class="muted">최근: ${m.candidates.recentSignals.slice(0,3).map(x=>esc(x.detail)).join(" / ")}</p>`:`<p class="muted">수요 신호 없음</p>`;
 }
+function renderGrowth(g){
+  if(!g) return;
+  const lc=g.lastCycle; const dec=Object.fromEntries((lc?.products||[]).map(p=>[p.service,p.decision]));
+  const label={patch:"보완",upgrade:"업그레이드","upgrade-shipped":"업그레이드 출시",grow:"성장",hold:"유지"};
+  $("gprod").innerHTML=`<tr><th>상품</th><th class="n">현재가</th><th class="n">하한</th><th class="n">상한</th><th>최근 판단</th></tr>`+g.priceBounds.map(p=>`<tr><td>${esc(p.name)}</td><td class="n">${usdc(p.priceUsdc)}</td><td class="n">${usdc(p.floor)}</td><td class="n">${usdc(p.ceiling)}</td><td>${esc(label[dec[p.service]]||dec[p.service]||"-")}</td></tr>`).join("");
+  $("gmeta").textContent=lc?`최근 사이클 ${ts(lc.at)} · 누적 ${g.cycles}회 · 조치 ${lc.actions.length}건`:"성장 사이클 미실행 (기동 후 1분 내 첫 실행, 이후 7일 주기)";
+  $("ghist").innerHTML=g.priceHistory.length?`<tr><th>일시</th><th>상품</th><th class="n">변경</th><th>사유</th></tr>`+g.priceHistory.map(h=>`<tr><td>${ts(h.at)}</td><td>${esc(h.service)}</td><td class="n">${usdc(h.from)} → ${usdc(h.to)}</td><td class="muted">${esc(h.reason)}</td></tr>`).join(""):`<tr><td class="muted">변경 이력 없음</td></tr>`;
+  $("gback").innerHTML=g.backlog.length?`<table>${g.backlog.map(b=>`<tr><td>${esc(b.type)}</td><td>${esc(b.title)}</td></tr>`).join("")}</table>`:`<p class="muted">없음</p>`;
+  $("glaunch").innerHTML=g.launched.length?`<table>${g.launched.map(l=>`<tr><td>${esc(l.name)}</td><td class="n">${usdc(l.priceUsdc)}</td><td>${ts(l.at)}</td></tr>`).join("")}</table>`:`<p class="muted">아직 없음</p>`;
+  const t=g.treasury;
+  $("gtreas").innerHTML=`<p>잔액 <b>${usdc(t.balanceUsdc)}</b> · 예비금 ${usdc(t.reserveUsdc)} · 가용 ${usdc(t.availableUsdc)} USDC</p><table><tr><th>제안</th><th>비용</th><th>기대효과</th></tr>${t.proposals.map(p=>`<tr><td title="${esc(p.why)}">${esc(p.title)}</td><td>${esc(p.costUsdc)}</td><td>${esc(p.expectedEffect)}</td></tr>`).join("")}</table><p class="note">제외(개발원칙): ${esc(t.forbidden.join(", "))}</p>`;
+}
+const _render=render; render=function(m){_render(m); renderGrowth(m.growth);};
 load(); setInterval(load,10000);
 </script>
 </body>

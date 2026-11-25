@@ -16,6 +16,7 @@ import { Guard } from "../core/guard.js";
 import { computeMetrics } from "../core/metrics.js";
 import { cliEnv } from "../adapters/cli.js";
 import { findComparable, proposePrice } from "../core/pricing.js";
+import { guardPrice } from "../growth/priceGuard.js";
 import { readFileSync, writeFileSync } from "node:fs";
 
 const cfg = loadConfig();
@@ -91,13 +92,18 @@ try {
         }
         const uniq = [...new Map(agents.map((a) => [a.walletAddress, a])).values()];
         const comparable = findComparable(uniq, o.service, { excludeWallets: me ? [me] : [] });
-        const p = proposePrice({ currentUsdc: o.priceUsdc, comparable, undercutRate: pc.undercutRate, floorUsdc: pc.floorUsdc });
+        const raw = proposePrice({ currentUsdc: o.priceUsdc, comparable, undercutRate: pc.undercutRate, floorUsdc: pc.floorUsdc });
+        // 모든 가격 변경은 가격 안전장치 통과 (하한·변동폭·쿨다운·누적 인하 한도)
+        o.basePriceUsdc ??= o.priceUsdc;
+        const g = raw.changed ? guardPrice({ product: o, requested: raw.priceUsdc, history: store.state.priceHistory || [], policy: cfg.policy }) : { priceUsdc: o.priceUsdc, changed: false };
+        const p = { ...raw, priceUsdc: g.priceUsdc, changed: g.changed, reason: g.blocked ? `${raw.reason} | blocked: ${g.blocked}` : g.applied?.length ? `${raw.reason} | guard: ${g.applied.join(", ")}` : raw.reason };
         rows.push({ service: o.service, current: o.priceUsdc, proposed: p.priceUsdc, competitors: comparable.length, lowest: p.lowestCompetitorUsdc ?? "-", reason: p.reason });
         if (apply && p.changed) {
           guard.require("price-change");
           const live = acp(["offering", "list"]);
           const target = (Array.isArray(live) ? live : live.data || []).find((x) => x.name === o.name);
           if (target) acp(["offering", "update", "--offering-id", target.id, "--price-value", p.priceUsdc.toFixed(2)]);
+          (store.state.priceHistory ??= []).push({ service: o.service, at: new Date().toISOString(), from: o.priceUsdc, to: p.priceUsdc, reason: p.reason, decision: "competitor" });
           o.priceUsdc = p.priceUsdc;
         }
       }

@@ -3,7 +3,7 @@
 //   job.funded  → 처리 → 자동검수 → submit
 //   job.completed/rejected/expired → 정산·기록
 // 이벤트 라인 형식은 `acp events listen --json` 출력과 동일: {jobId, chainId, status, roles, availableTools, entry}
-import { resolveService, precheck, fulfil } from "../services/index.js";
+import { resolveService, precheck, fulfil, registerOfferings } from "../services/index.js";
 
 export class ProviderRuntime {
   constructor({ adapter, store, offerings, policy, log = console.log }) {
@@ -13,6 +13,7 @@ export class ProviderRuntime {
     this.policy = policy;
     this.log = log;
     this.queue = Promise.resolve();
+    registerOfferings(offerings);
     this.self = null;
   }
 
@@ -67,6 +68,10 @@ export class ProviderRuntime {
 
     if (entry.kind === "system") return this.onSystem(id, chainId, entry.event, line);
     if (entry.kind === "message" && entry.contentType === "requirement" && entry.from?.toLowerCase() !== this.self) return this.onRequirement(id, chainId, entry, line);
+    if (entry.kind === "message" && entry.contentType !== "requirement" && entry.from?.toLowerCase() !== this.self && entry.content) {
+      // 구매자 의견 수집 (피드백 엔진 입력)
+      this.store.addFeedback({ jobId: id, service: this.store.job(id)?.service ?? null, source: "message", text: String(entry.content).slice(0, 1000) });
+    }
   }
 
   async onSystem(id, chainId, ev, line) {
@@ -95,6 +100,7 @@ export class ProviderRuntime {
       }
       case "job.rejected":
         if (job) this.store.upsertJob(id, { status: "rejected", failReason: ev.reason || "rejected" });
+        if (job && job.status !== "declined") this.store.addFeedback({ jobId: id, service: job.service ?? null, source: "rejection", text: String(ev.reason || "rejected").slice(0, 1000) });
         return;
       case "job.expired":
         if (job && !["completed", "rejected"].includes(job.status)) this.store.upsertJob(id, { status: job.status === "declined" ? "declined" : "expired", expiredEvent: true });

@@ -13,6 +13,7 @@
     "mainnet",
     "register-offerings",
     "price-change",
+    "auto-launch",
     "withdraw",
     "topup",
     "tokenize",
@@ -44,5 +45,25 @@
         "schema validation"
       ]
     }
+  },
+  "growth": {
+    "_comment": "주간 성장 사이클. 신상품은 카탈로그 ready 상품만, 주 1개 한도, 'auto-launch' 승인 필요",
+    "intervalDays": 7,
+    "minLaunchScore": 50,
+    "maxLaunchesPerWeek": 1
+  },
+  "priceGuard": {
+    "_comment": "무한 인하 방지: 하한(정책·원가·기준가 대비 -30%), 1회 ±10%, 쿨다운 7일, 근거 없는 연속 인하 금지",
+    "floorUsdc": 0.05,
+    "minNetMarginUsdc": 0.03,
+    "maxStepRate": 0.1,
+    "maxMultiplier": 2.0,
+    "maxDrawdownRate": 0.3,
+    "cooldownDays": 7
+  },
+  "treasury": {
+    "_comment": "예비금 보유 후 잔여분에 대해 '제안'만 생성. 자동 지출·투자 없음",
+    "reserveUsdc": 2,
+    "reserveMonths": 1
   }
 }

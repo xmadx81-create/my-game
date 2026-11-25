@@ -9,6 +9,10 @@ import { Guard } from "../core/guard.js";
 import { ProviderRuntime } from "../core/provider.js";
 import { CliAdapter } from "../adapters/cli.js";
 import { createDashboard } from "../dashboard/server.js";
+import { join } from "node:path";
+import { ROOT } from "../config.js";
+import { cliOps } from "../growth/acpOps.js";
+import { runGrowthCycle } from "../growth/cycle.js";
 
 const cfg = loadConfig();
 const store = new Store(cfg.dataDir);
@@ -34,6 +38,25 @@ try {
 }
 const walletTimer = setInterval(() => runtime.refreshWallet(), 10 * 60 * 1000);
 
+// 주간 성장 사이클: 1시간마다 확인, 마지막 실행 후 intervalDays 경과 시 실행 (provider와 같은 오퍼링 배열을 공유 → 신상품 즉시 판매)
+let growthRunning = false;
+const growthTick = async () => {
+  const last = store.state.growth.at(-1)?.at;
+  const due = !last || Date.now() - Date.parse(last) >= (cfg.policy.growth?.intervalDays ?? 7) * 86400e3;
+  if (!due || growthRunning) return;
+  growthRunning = true;
+  try {
+    await runGrowthCycle({ store, cfg, ops: cliOps(adapter), guard, offeringsPath: join(ROOT, "config", "offerings.json"), reportDir: join(cfg.dataDir, "growth"), log: console.log });
+  } catch (e) {
+    console.error(`[growth] cycle failed: ${e.message}`);
+    store.addSignal({ kind: "growth_error", detail: e.message });
+  } finally {
+    growthRunning = false;
+  }
+};
+const growthTimer = setInterval(growthTick, 60 * 60 * 1000);
+setTimeout(growthTick, 60 * 1000);
+
 const di = process.argv.indexOf("--dashboard");
 if (di > -1) {
   const port = Number(process.argv[di + 1]) || 8787;
@@ -42,6 +65,7 @@ if (di > -1) {
 
 const shutdown = async () => {
   clearInterval(walletTimer);
+  clearInterval(growthTimer);
   await runtime.stop();
   process.exit(0);
 };

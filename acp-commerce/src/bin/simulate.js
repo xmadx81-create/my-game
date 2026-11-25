@@ -10,6 +10,8 @@ import { MockMarketplace, MockAdapter } from "../adapters/mock.js";
 import { createDashboard } from "../dashboard/server.js";
 import { computeMetrics } from "../core/metrics.js";
 import { SCENARIOS, verifyDeliverable } from "../sim/scenarios.js";
+import { runGrowthCycle } from "../growth/cycle.js";
+import { Guard } from "../core/guard.js";
 
 const cfg = loadConfig();
 const repeat = Number(process.argv[process.argv.indexOf("--repeat") + 1]) || 1;
@@ -55,6 +57,11 @@ const reconciled = Math.abs(spent - (provBal + treasury)) < 1e-6 && Math.abs(pro
 console.log(`\n시나리오 ${pass}/${rows.length} 통과`);
 console.log(`정산 대사: 구매자 지출 ${spent} = 판매자 수령 ${provBal} + 수수료 ${treasury} | 장부 순매출 ${m.monthly.netUsdc} | 잔여 에스크로 ${market.escrow.size}건 → ${reconciled ? "일치" : "불일치"}`);
 console.log(`AI 사용료 ${m.costs.aiCostTotalUsd} USD · 이번달 순이익 ${m.monthly.profitUsd} USD`);
+
+// 성장 사이클 1회 (모의 마켓: 경쟁 상품 없음, 승인 없음 → 분석·제안만)
+const simOps = { address: async () => market.providerAddress, browse: async () => [], listOfferings: async () => [], createOffering: async () => ({}), updateOfferingPrice: async () => {} };
+const growth = await runGrowthCycle({ store, cfg: { ...cfg, offerings: JSON.parse(JSON.stringify(cfg.offerings)) }, ops: simOps, guard: new Guard(store, cfg.policy) });
+console.log(`성장 사이클: 상품 판단 ${growth.products.map((p) => `${p.service}=${p.decision}`).join(", ")} / 신상품 ${growth.launch ? growth.launch.service + " " + growth.launch.result : "없음"} / 백로그 ${growth.backlog.length}건`);
 
 const di = process.argv.indexOf("--dashboard");
 if (di > -1) {

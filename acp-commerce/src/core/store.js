@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-const EMPTY = () => ({ jobs: {}, ledger: [], signals: [], approvals: [], heartbeat: null, wallet: null });
+const EMPTY = () => ({ jobs: {}, ledger: [], signals: [], approvals: [], heartbeat: null, wallet: null, feedback: [], priceHistory: [], growth: [], launched: [] });
 
 export class Store {
   constructor(dir) {
@@ -51,6 +51,12 @@ export class Store {
   addSignal(signal) {
     this.state.signals.push({ at: new Date().toISOString(), ...signal });
     if (this.state.signals.length > 1000) this.state.signals = this.state.signals.slice(-1000);
+    this.save();
+  }
+
+  addFeedback(fb) {
+    this.state.feedback.push({ at: new Date().toISOString(), ...fb });
+    if (this.state.feedback.length > 2000) this.state.feedback = this.state.feedback.slice(-2000);
     this.save();
   }
 

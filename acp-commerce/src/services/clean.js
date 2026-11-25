@@ -12,6 +12,7 @@ export const DEFAULT_CLEAN_OPTIONS = {
   dropEmptyColumns: false,
   dedupe: true,
   dedupeKeys: null, // null → 전체 열 기준
+  dedupeOnType: null, // "email" | "phone": 해당 타입으로 추론된 열을 중복 기준으로 사용 (프리셋 상품용)
   standardize: { dates: true, numbers: true, emails: true, phones: true, booleans: true },
 };
 
@@ -164,7 +165,9 @@ export function runClean(req, limits) {
 
   // 6) 중복 제거 (첫 행 유지)
   if (opts.dedupe) {
-    const keys = opts.dedupeKeys?.length ? opts.dedupeKeys.map((k) => (headerMap.get(k) ?? (opts.normalizeHeaders === "snake" ? toSnake(k) : k))) : columns;
+    const typed = opts.dedupeOnType ? columns.filter((c) => columnTypes[c] === opts.dedupeOnType) : [];
+    if (opts.dedupeOnType && !typed.length) throw new ServiceError("BAD_OPTION", `No ${opts.dedupeOnType} column detected for de-duplication`);
+    const keys = typed.length ? typed : opts.dedupeKeys?.length ? opts.dedupeKeys.map((k) => (headerMap.get(k) ?? (opts.normalizeHeaders === "snake" ? toSnake(k) : k))) : columns;
     const missing = keys.filter((k) => !columns.includes(k));
     if (missing.length) throw new ServiceError("BAD_OPTION", `dedupeKeys refers to unknown column(s): ${missing.join(", ")}`);
     const seen = new Set();

@@ -1,4 +1,6 @@
 // 관제 지표 집계: 관리자 화면 표시 항목 전부를 state.json에서 계산
+import { treasuryReport } from "../growth/treasury.js";
+import { bounds } from "../growth/priceGuard.js";
 const FAILED = new Set(["failed", "rejected"]);
 const DONE = new Set(["completed"]);
 
@@ -85,6 +87,15 @@ export function computeMetrics(state, { offerings, policy, candidates, now = new
     service: { status, adapter: hb.adapter || null, network: hb.network || null, address: hb.address || null, startedAt: hb.startedAt || null, lastEventAt: hb.lastEventAt || null, lastEventAgeSec: ageSec, offerings: offerings.map((o) => ({ name: o.name, service: o.service, priceUsdc: o.priceUsdc, slaMinutes: o.slaMinutes })) },
     approvals: state.approvals.filter((a) => !a.revokedAt),
     candidates: { planned: candidates, demandSignals: signalCounts, recentSignals: state.signals.slice(-10).reverse() },
+    growth: {
+      lastCycle: (state.growth || []).at(-1) || null,
+      cycles: (state.growth || []).length,
+      priceHistory: (state.priceHistory || []).slice(-10).reverse(),
+      priceBounds: offerings.map((o) => ({ service: o.service, name: o.name, priceUsdc: o.priceUsdc, ...bounds(o, policy) })),
+      backlog: (state.backlog || []).filter((b) => !b.doneAt).slice(-10).reverse(),
+      launched: (state.launched || []).slice(-10).reverse(),
+      treasury: treasuryReport({ state, policy, now }),
+    },
     recentJobs: jobs.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 20).map((j) => ({ jobId: j.jobId, service: j.service, status: j.status, price: j.price, netUsdc: j.netUsdc, updatedAt: j.updatedAt, failReason: j.failReason })),
   };
 }
