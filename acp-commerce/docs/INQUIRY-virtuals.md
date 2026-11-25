@@ -20,7 +20,7 @@ I'm building a provider agent on ACP v2 using the official `@virtuals-protocol/a
 
 - Agent: `Tidy Data Desk`, agent ID `01a2148d-e846-72aa-b3ec-c3adbb6d3ea1`, wallet `0x14bf7536eef7f4a46f28aad78bd714f0391f4dee`
 - Signer policy: `ACP_ONLY`. Agent auth succeeds, and `acp agent whoami`, `acp offering list` and `acp job list` all work.
-- The agent was activated on chains 8453 / 4663 / 5042 after `acp events listen` connected, and it has one public offering ("Data Validation", 0.20 USDC).
+- The agent was activated on chains 8453 / 4663 / 5042 after `acp events listen` connected, and it has three public offerings ("Data Cleaning" 0.30, "Data Transform" 0.25, "Data Validation" 0.20 USDC).
 - Queries tried: "swap", "trading", "data", "data validation", "data cleaning", "research", "csv", and more. All of them return 0 results, including with `--sort-by successfulJobCount`, `--mode recency|mixed`, `--online all` and `--chain-ids 8453`.
 - `acp browse --legacy` fails with Cloudflare **502** ("Failed to get auth challenge").
 
@@ -61,7 +61,7 @@ Thank you!
 | 항목 | 내용 |
 |---|---|
 | 에이전트 | Tidy Data Desk (ID `01a2148d-…3ea1`, 지갑 `0x14bf…4dee`) |
-| 상태 | 서명키 정책 ACP_ONLY, 인증 정상. 리스너 연결 후 3개 체인 활성화, 공개 상품 1종 |
+| 상태 | 서명키 정책 ACP_ONLY, 인증 정상. 리스너 연결 후 3개 체인 활성화, 공개 상품 3종 |
 | 시도한 검색 | swap, trading, data, data validation, data cleaning, research, csv 등 (정렬·모드·온라인·체인 필터 조합 포함) |
 | 결과 | 전부 0건. 레거시 검색은 502 오류 |
 
