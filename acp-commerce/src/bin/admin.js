@@ -53,13 +53,26 @@ try {
       const only = flag("--only");
       const targets = only ? cfg.offerings.filter((o) => o.service === only) : cfg.offerings;
       if (only && !targets.length) throw new Error(`--only: 알 수 없는 서비스 ${only} (data-clean | data-transform | data-validate)`);
+      const acpJson = (args) => JSON.parse(execFileSync(bin, [...args, "--json"], { encoding: "utf8", env: cliEnv(), stdio: ["ignore", "pipe", "pipe"] }).trim().split("\n").pop());
+      let live = [];
+      if (apply) { const r = acpJson(["offering", "list"]); live = Array.isArray(r) ? r : r.data || []; }
       for (const o of targets) {
-        const a = offeringArgs(o);
+        const existing = live.find((x) => x.name === o.name);
         if (!apply) {
+          const a = offeringArgs(o);
           console.log(`[dry-run] ${testnet ? "IS_TESTNET=true " : ""}acp ${a.map((x) => (/[\s{"]/.test(x) ? `'${x}'` : x)).join(" ")}\n`);
           continue;
         }
-        console.log(execFileSync(bin, a, { encoding: "utf8", env: cliEnv() }));
+        if (existing) {
+          // 동기화: 설명·납품물·요구사항·SLA 갱신. 가격이 다르면 'price-change' 승인 필요
+          const args = ["offering", "update", "--offering-id", existing.id, "--description", o.description, "--deliverable", o.deliverable, "--requirements", JSON.stringify(o.requirements), "--sla-minutes", String(o.slaMinutes)];
+          if (Number(existing.priceValue) !== o.priceUsdc) { guard.require("price-change"); args.push("--price-value", o.priceUsdc.toFixed(2)); }
+          acpJson(args);
+          console.log(`[updated] ${o.name} (${existing.id})`);
+        } else {
+          const r = acpJson(offeringArgs(o).slice(0, -1));
+          console.log(`[created] ${o.name} (${r.id}) ${o.priceUsdc} USDC`);
+        }
       }
       if (!apply) console.log("※ 실제 등록: 관리자 승인(register-offerings) 후 --apply. 메인넷은 'mainnet' 승인 추가 필요");
       break;
