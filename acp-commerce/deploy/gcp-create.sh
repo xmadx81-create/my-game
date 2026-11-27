@@ -4,6 +4,8 @@
 # 무료 등급 조건: e2-micro 1대, us-central1, 표준 영구 디스크 30GB, x86 Ubuntu 24.04 (가입 시 공식 조건 재확인)
 set -uo pipefail
 
+main() {
+
 VM=acp-provider
 ZONE="${ZONE:-us-central1-a}"
 BRANCH="${BRANCH:-ccr-704e5dcf-f8lanv}"
@@ -48,16 +50,20 @@ fi
 echo "SSH 준비 대기..."
 for i in $(seq 1 30); do
   [ "$DRY_RUN" = 1 ] && break
-  gcloud compute ssh "$VM" --zone "$ZONE" --quiet --command true >/dev/null 2>&1 && break
+  gcloud compute ssh "$VM" --zone "$ZONE" --quiet --command true </dev/null >/dev/null 2>&1 && break
   sleep 10
 done
 
 step 5/6 "서버 설치 (약 5~10분, 끝날 때까지 창을 닫지 마세요)"
-G compute ssh "$VM" --zone "$ZONE" --quiet --command "curl -fsSL $INSTALL_URL | sudo bash" || fail "설치 실패 (마지막 20줄을 Claude에게 전달해 주세요)"
+G compute ssh "$VM" --zone "$ZONE" --quiet --command "curl -fsSL $INSTALL_URL | sudo bash" </dev/null || fail "설치 실패 (마지막 20줄을 Claude에게 전달해 주세요)"
 
 step 6/6 "Virtuals 로그인 → 서명키 승인 → 판매 시작 (링크 2개를 차례로 클릭)"
-G compute ssh "$VM" --zone "$ZONE" --quiet --command "sudo acpctl login && sudo acpctl signer && sudo acpctl start && sudo acpctl status" -- -t \
+G compute ssh "$VM" --zone "$ZONE" --quiet --command "sudo acpctl login && sudo acpctl signer && sudo acpctl start && sudo acpctl status" -- -t </dev/tty \
   || fail "로그인/서명 단계 중단. 다시: gcloud compute ssh $VM --zone $ZONE --command 'sudo acpctl login' -- -t"
 
 printf '\n\033[1;32m완료! 위 status 결과를 복사해 Claude에게 "서버 가동 완료"와 함께 보내주세요.\033[0m\n'
 echo "서버 접속: gcloud compute ssh $VM --zone $ZONE   /   상태: sudo acpctl status"
+}
+
+# 스크립트 전체를 읽은 뒤 실행 (curl | bash 실행 시 SSH가 남은 스크립트를 읽어가는 문제 방지)
+main "$@"
